@@ -1,0 +1,91 @@
+.authBar {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.authBar__pill {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-h);
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.authBar__admin {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.authBar__form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.authBar__input {
+  height: 34px;
+  width: 200px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  padding: 0 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.authBar__btn {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.authBar__btn:hover {
+  border-color: var(--accent-border);
+}
+
+.authBar__btn--primary {
+  border-color: transparent;
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.authBar__status {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+}
+
+@media (max-width: 680px) {
+  .authBar {
+    width: 100%;
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+
+  .authBar__input {
+    width: 160px;
+  }
+}
+

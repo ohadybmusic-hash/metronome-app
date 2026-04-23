@@ -1,0 +1,90 @@
+.authGate {
+  padding: 28px 20px 40px;
+  display: grid;
+  place-items: start center;
+}
+
+.authGate__card {
+  width: min(560px, 100%);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  background: var(--bg);
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  text-align: left;
+}
+
+.authGate__title {
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.2px;
+  color: var(--text-h);
+}
+
+.authGate__subtitle {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.authGate__form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.authGate__input {
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  padding: 0 12px;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.authGate__btn {
+  height: 42px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.authGate__btn:hover {
+  border-color: var(--accent-border);
+}
+
+.authGate__btn--primary {
+  border-color: transparent;
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.authGate__status {
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--text-h);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.authGate__hint {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+}
+
+@media (max-width: 680px) {
+  .authGate__form {
+    grid-template-columns: 1fr;
+  }
+}
+

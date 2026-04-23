@@ -1,0 +1,230 @@
+/* Uses global CSS variables from index.css (dark-mode compatible). */
+.tuner {
+  padding: 0 20px 40px;
+  display: grid;
+  gap: 12px;
+}
+
+.tuner__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.tuner__title {
+  margin: 0;
+  font-size: 22px;
+  color: var(--text-h);
+}
+
+.tuner__subtitle {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+}
+
+.tuner__panel {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  background: var(--bg);
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.tuner__row--config {
+  display: grid;
+  grid-template-columns: 1.4fr 1.2fr auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.tuner__label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.tuner__select {
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  padding: 0 10px;
+}
+
+.tuner__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text-h);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.tuner__toggle input {
+  width: 18px;
+  height: 18px;
+}
+
+.tuner__row--buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tuner__btn {
+  font-family: var(--mono);
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.tuner__btn:hover {
+  border-color: var(--accent-border);
+}
+
+.tuner__btn--primary {
+  border-color: transparent;
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.tuner__error {
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--text-h);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.tuner__readout {
+  display: grid;
+  gap: 6px;
+}
+
+.tuner__strobe {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.tuner__strobeCanvas {
+  width: 100%;
+  height: 84px;
+  display: block;
+}
+
+.tuner__targets {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.tuner__target {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 8px;
+  display: grid;
+  gap: 2px;
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+}
+
+.tuner__target.is-active {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.tuner__target.is-near {
+  border-color: rgba(52, 211, 153, 0.5);
+}
+
+.tuner__targetNote {
+  font-family: var(--mono);
+  color: var(--text-h);
+  font-size: 14px;
+}
+
+.tuner__targetHz {
+  font-family: var(--mono);
+  color: var(--text);
+  font-size: 11px;
+}
+
+.tuner__targetCents {
+  font-family: var(--mono);
+  color: var(--text-h);
+  font-size: 12px;
+}
+
+@media (max-width: 680px) {
+  .tuner__row--config {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .tuner__targets {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.tuner__freq {
+  font-family: var(--mono);
+  font-size: 28px;
+  letter-spacing: -0.4px;
+  color: var(--text-h);
+}
+
+.tuner__note {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  color: var(--text-h);
+}
+
+.tuner__noteName {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.tuner__cents {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+}
+
+.tuner__muted {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.tuner__confidence {
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  background: rgba(127, 127, 127, 0.08);
+}
+
+.tuner__confidenceBar {
+  height: 100%;
+  background: var(--accent);
+  width: 0%;
+  transition: width 80ms linear;
+}
+
+.tuner__confidenceLabel {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+}
+
