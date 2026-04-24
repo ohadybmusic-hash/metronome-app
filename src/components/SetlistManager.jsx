@@ -1,13 +1,6 @@
 import { useMemo } from 'react'
 import './SetlistManager.css'
 
-function formatSongLine(s) {
-  const bpm = Number.isFinite(Number(s?.bpm)) ? Math.round(Number(s.bpm)) : '?'
-  const ts = s?.timeSignature || '?'
-  const sub = s?.subdivision || '?'
-  return `${s?.name || 'Untitled'} — ${bpm} BPM • ${ts} • ${sub}`
-}
-
 export default function SetlistManager({ met, stageMode, setStageMode }) {
   const saveCurrentSong = () => {
     const name = window.prompt('Song name?')

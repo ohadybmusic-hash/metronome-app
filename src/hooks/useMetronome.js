@@ -42,9 +42,6 @@ function getMetronomeOutputNode(ctx, panner) {
   return panner || ctx.destination
 }
 
-function useIOSStyleAudioUnlock() {
-  return isIOSOrIPadOS() || isIOSAddToHomeScreenPWA()
-}
 
 function toUtcDayString(date = new Date()) {
   const y = date.getUTCFullYear()
@@ -618,7 +615,7 @@ export function useMetronome(options = {}) {
   // Call on pointerup / from start() — must run sync (do not await) inside user gesture.
   const ensureUserGestureAudio = useCallback(() => {
     const ctx = ensureContext()
-    const ios = useIOSStyleAudioUnlock()
+    const ios = isIOSOrIPadOS() || isIOSAddToHomeScreenPWA()
 
     if (ios) {
       // Many iPhone builds unmute the media stack more reliably with HTMLAudio + Web Audio.

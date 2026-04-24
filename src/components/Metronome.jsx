@@ -175,9 +175,6 @@ function RotaryDial({ value, onChange, onTap, label = 'BPM', disabled = false })
   const setFromPoint = (clientX, clientY) => {
     const el = dialRef.current
     if (!el) return
-    const rect = el.getBoundingClientRect()
-    const cx = rect.left + rect.width / 2
-    const cy = rect.top + rect.height / 2
     const rotated = angleFromPoint(clientX, clientY)
     const clampedAngle = clamp(rotated, minAngle, maxAngle)
     const tt = (clampedAngle - minAngle) / (maxAngle - minAngle)
@@ -258,11 +255,6 @@ function RotaryDial({ value, onChange, onTap, label = 'BPM', disabled = false })
   const r = (size - stroke) / 2
   const circ = 2 * Math.PI * r
   const dash = circ * clamp(progress, 0, 1)
-
-  useEffect(() => {
-    if (editing) return
-    setTextValue(String(Math.round(value)))
-  }, [editing, value])
 
   const commitText = () => {
     const raw = String(textValue || '').trim()
@@ -352,9 +344,12 @@ function RotaryDial({ value, onChange, onTap, label = 'BPM', disabled = false })
           <input
             ref={inputRef}
             className="dial__value dial__valueInput"
-            value={textValue}
+            value={editing ? textValue : String(Math.round(value))}
             onChange={(e) => setTextValue(e.target.value)}
-            onFocus={() => setEditing(true)}
+            onFocus={() => {
+              setTextValue(String(Math.round(value)))
+              setEditing(true)
+            }}
             onBlur={() => {
               setEditing(false)
               commitText()
@@ -588,8 +583,11 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
 
     return () => {
       unsubscribe?.()
-      for (const id of flashTimersRef.current) window.clearTimeout(id)
-      flashTimersRef.current.clear()
+      // Intentional: read latest timer Set on teardown (not a ref to a React node).
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const s = flashTimersRef.current
+      for (const id of s) window.clearTimeout(id)
+      s.clear()
     }
   }, [met, screenFlashEnabled])
 
@@ -635,11 +633,14 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
 
     return () => {
       unsubscribe?.()
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const s = flashTimersRef.current
+      for (const id of s) window.clearTimeout(id)
+      s.clear()
     }
   }, [met, stageMode])
 
   const bpm = met.bpm
-  const bpmLabel = useMemo(() => `${Math.round(bpm)} BPM`, [bpm])
 
   useEffect(() => {
     onStageModeChange?.(stageMode)
