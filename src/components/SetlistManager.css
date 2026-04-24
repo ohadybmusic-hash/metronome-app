@@ -20,39 +20,6 @@
   align-self: center;
 }
 
-.setlistMgr__stage {
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  box-shadow: var(--shadow);
-  padding: 10px;
-}
-
-.setlistMgr__songList {
-  display: grid;
-  gap: 8px;
-}
-
-.setlistMgr__songBtn {
-  text-align: left;
-  font-family: var(--mono);
-  border-radius: 12px;
-  padding: 12px 12px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text-h);
-}
-
-.setlistMgr__songBtn:hover {
-  border-color: var(--accent-border);
-}
-
-.setlistMgr__songBtn--active {
-  border-color: transparent;
-  background: var(--accent-bg);
-  color: var(--accent);
-}
-
 .setlistMgr__empty {
   color: var(--text);
   font-size: 13px;

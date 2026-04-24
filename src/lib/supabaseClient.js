@@ -10,5 +10,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
   )
 }
 
+// Authenticated client (persists session, used for user-specific tables).
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+// Public client (no persisted session) to avoid auth-token storage locks for anon queries.
+export const supabasePublic = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+  },
+})
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import './SetlistManager.css'
 
 function formatSongLine(s) {
@@ -8,9 +8,7 @@ function formatSongLine(s) {
   return `${s?.name || 'Untitled'} — ${bpm} BPM • ${ts} • ${sub}`
 }
 
-export default function SetlistManager({ met }) {
-  const [stageMode, setStageMode] = useState(false)
-
+export default function SetlistManager({ met, stageMode, setStageMode }) {
   const saveCurrentSong = () => {
     const name = window.prompt('Song name?')
     if (!name) return
@@ -35,17 +33,11 @@ export default function SetlistManager({ met }) {
     met.presets.addSongToSetlist({ setlistId, songId })
   }
 
-  const stageSongs = useMemo(() => {
+  const canEnterStageMode = useMemo(() => {
     const setlistId = met.presets.activeSetlistId
-    const songs = met.presets.songs || []
-    const setlists = met.presets.setlists || []
-    if (!setlistId) return songs
-
-    const sl = setlists.find((x) => x.id === setlistId)
-    if (!sl?.songIds?.length) return []
-
-    const byId = new Map(songs.map((s) => [s.id, s]))
-    return sl.songIds.map((id) => byId.get(id)).filter(Boolean)
+    if (!setlistId) return met.presets.songs?.length > 0
+    const sl = met.presets.setlists?.find((x) => x.id === setlistId)
+    return (sl?.songIds?.length ?? 0) > 0
   }, [met.presets.activeSetlistId, met.presets.setlists, met.presets.songs])
 
   return (
@@ -73,8 +65,13 @@ export default function SetlistManager({ met }) {
         </label>
 
         <label className="metronome__toggle setlistMgr__toggle">
-          <input type="checkbox" checked={stageMode} onChange={(e) => setStageMode(e.target.checked)} />
-          <span>Stage Mode</span>
+          <input
+            type="checkbox"
+            checked={stageMode}
+            onChange={(e) => setStageMode(e.target.checked)}
+            disabled={!canEnterStageMode && !stageMode}
+          />
+          <span>Performance Mode</span>
         </label>
       </div>
 
@@ -110,29 +107,8 @@ export default function SetlistManager({ met }) {
         </div>
       </div>
 
-      {stageMode ? (
-        <div className="setlistMgr__stage" role="region" aria-label="Stage Mode">
-          {stageSongs.length ? (
-            <div className="setlistMgr__songList" role="list">
-              {stageSongs.map((s) => {
-                const active = s.id === met.presets.activeSongId
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    role="listitem"
-                    className={`setlistMgr__songBtn ${active ? 'setlistMgr__songBtn--active' : ''}`}
-                    onClick={() => met.presets.applySong(s)}
-                  >
-                    {formatSongLine(s)}
-                  </button>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="setlistMgr__empty">No songs yet. Save a song, or select a setlist with songs.</div>
-          )}
-        </div>
+      {stageMode && !canEnterStageMode ? (
+        <div className="setlistMgr__empty">Select a setlist with songs (or save a song) to use Stage Mode.</div>
       ) : null}
 
       {met.presets.guestSyncPrompt ? (

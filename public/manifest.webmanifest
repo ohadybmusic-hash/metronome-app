@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "Metronome",
+  "short_name": "Metronome",
+  "description": "BPM metronome, setlists, and tuner for practice",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0d0d0b",
+  "theme_color": "#0d0d0b",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["music", "utilities"]
+}

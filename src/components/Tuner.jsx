@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './Tuner.css'
+import Stepper from './Stepper.jsx'
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n))
@@ -103,7 +104,7 @@ function buildTuningTargets(tuning, a4) {
     .filter(Boolean)
 }
 
-export default function Tuner() {
+export default function Tuner({ getAudioContext } = {}) {
   const [refToneOn, setRefToneOn] = useState(false)
   const [listening, setListening] = useState(false)
   const [frequency, setFrequency] = useState(null)
@@ -150,8 +151,12 @@ export default function Tuner() {
 
   const ensureCtx = async () => {
     if (!audioRef.current.ctx) {
-      const AudioContextCtor = window.AudioContext || window.webkitAudioContext
-      audioRef.current.ctx = new AudioContextCtor()
+      if (typeof getAudioContext === 'function') {
+        audioRef.current.ctx = getAudioContext()
+      } else {
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext
+        audioRef.current.ctx = new AudioContextCtor()
+      }
     }
     if (audioRef.current.ctx.state === 'suspended') {
       await audioRef.current.ctx.resume()
@@ -323,16 +328,25 @@ export default function Tuner() {
     }
   }
 
+  // Do NOT start the mic in useEffect. On iOS, creating/resuming a shared AudioContext or
+  // getUserMedia in an async post-mount path runs *outside* the user-gesture and can lock Web
+  // Audio in a "silent" state for the metronome. User taps "Start tuner".
+
   useEffect(() => {
     const a = audioRef.current
+    const isShared = typeof getAudioContext === 'function'
     return () => {
       stopReferenceTone()
       stopTuner()
+      if (isShared) {
+        a.ctx = null
+        return
+      }
       const ctx = a.ctx
       a.ctx = null
       if (ctx && typeof ctx.close === 'function') ctx.close()
     }
-  }, [])
+  }, [getAudioContext])
 
   const strobeCanvasRef = useRef(null)
   const strobeRafRef = useRef(null)
@@ -464,7 +478,10 @@ export default function Tuner() {
   }, [confidence, guidance, listening, note, strobeMode])
 
   return (
-    <section className="tuner">
+    <div
+      className="mx-auto flex w-full min-w-0 max-w-2xl flex-col items-stretch justify-start px-1 sm:px-0"
+    >
+    <section className="tuner w-full min-w-0 max-w-full">
       <header className="tuner__header">
         <h2 className="tuner__title">Tuner</h2>
         <div className="tuner__subtitle">Alternate tunings + strobe</div>
@@ -489,15 +506,26 @@ export default function Tuner() {
 
           <label className="tuner__label">
             Reference pitch (A4)
-            <select
-              className="tuner__select"
-              value={referencePitch}
-              onChange={(e) => setReferencePitch(Number(e.target.value))}
-            >
-              <option value={432}>432 Hz</option>
-              <option value={440}>440 Hz (standard)</option>
-              <option value={442}>442 Hz</option>
-            </select>
+            <div className="tuner__refPitch">
+              <input
+                className="tuner__range"
+                type="range"
+                min={415}
+                max={466}
+                value={referencePitch}
+                onChange={(e) => setReferencePitch(Number(e.target.value))}
+              />
+              <div className="tuner__refStepper">
+                <Stepper
+                  value={referencePitch}
+                  min={415}
+                  max={466}
+                  step={1}
+                  format={(v) => `${Math.round(v)} Hz`}
+                  onChange={(v) => setReferencePitch(Number(v))}
+                />
+              </div>
+            </div>
           </label>
 
           <label className="tuner__toggle">
@@ -578,6 +606,7 @@ export default function Tuner() {
         </div>
       </div>
     </section>
+    </div>
   )
 }
 

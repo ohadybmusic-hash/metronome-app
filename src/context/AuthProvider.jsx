@@ -12,6 +12,20 @@ async function sleep(ms) {
   await new Promise((r) => window.setTimeout(r, ms))
 }
 
+async function withTimeout(promise, ms) {
+  let t
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        t = window.setTimeout(() => reject(new Error('timeout')), ms)
+      }),
+    ])
+  } finally {
+    if (t) window.clearTimeout(t)
+  }
+}
+
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [user, setUser] = useState(null)
@@ -70,32 +84,34 @@ export function AuthProvider({ children }) {
       await enqueue(async () => {
         if (cancelled) return
         setLoading(true)
-        let res
         try {
-          res = await supabase.auth.getSession()
-        } catch (e) {
-          if (isLockError(e)) {
-            await sleep(200)
-            res = await supabase.auth.getSession()
-          } else {
-            throw e
+          let res
+          try {
+            res = await withTimeout(supabase.auth.getSession(), 3000)
+          } catch (e) {
+            if (isLockError(e)) {
+              await sleep(200)
+              res = await withTimeout(supabase.auth.getSession(), 3000)
+            } else {
+              throw e
+            }
           }
-        }
-        const { data, error } = res || {}
-        if (error) {
+          const { data, error } = res || {}
+          if (error) return
+
+          const nextSession = data?.session ?? null
+          const nextUser = nextSession?.user ?? null
+
+          if (!cancelled) {
+            setSession(nextSession)
+            setUser(nextUser)
+          }
+          if (!cancelled) refreshProfile(nextUser)
+        } catch {
+          // Swallow init errors; the UI should still be usable (AuthGate can retry).
+        } finally {
           if (!cancelled) setLoading(false)
-          return
         }
-
-        const nextSession = data?.session ?? null
-        const nextUser = nextSession?.user ?? null
-
-        if (!cancelled) {
-          setSession(nextSession)
-          setUser(nextUser)
-        }
-        if (!cancelled) await refreshProfile(nextUser)
-        if (!cancelled) setLoading(false)
       })
     }
 
@@ -105,8 +121,11 @@ export function AuthProvider({ children }) {
         setSession(nextSession ?? null)
         setUser(nextUser)
         setLoading(true)
-        await refreshProfile(nextUser)
-        setLoading(false)
+        try {
+          refreshProfile(nextUser)
+        } finally {
+          setLoading(false)
+        }
       })
     })
 
@@ -141,6 +160,38 @@ export function AuthProvider({ children }) {
     return data
   }, [])
 
+  const signInAnonymously = useCallback(async () => {
+    const { data, error } = await supabase.auth.signInAnonymously()
+    if (error) throw error
+    return data
+  }, [])
+
+  const signInWithOAuth = useCallback(async ({ provider }) => {
+    const p = String(provider || '').trim()
+    if (!p) throw new Error('Missing OAuth provider')
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: p,
+      options: {
+        redirectTo: window.location.origin,
+      },
+    })
+    if (error) throw error
+    return data
+  }, [])
+
+  const linkOAuthIdentity = useCallback(async ({ provider }) => {
+    const p = String(provider || '').trim()
+    if (!p) throw new Error('Missing OAuth provider')
+    const { data, error } = await supabase.auth.linkIdentity({
+      provider: p,
+      options: {
+        redirectTo: window.location.origin,
+      },
+    })
+    if (error) throw error
+    return data
+  }, [])
+
   const signOut = useCallback(async () => {
     const { error } = await supabase.auth.signOut()
     if (error) throw error
@@ -158,10 +209,27 @@ export function AuthProvider({ children }) {
       signUp,
       signIn,
       signInWithMagicLink,
+      signInAnonymously,
+      signInWithOAuth,
+      linkOAuthIdentity,
       signOut,
       refreshProfile: () => refreshProfile(user),
     }),
-    [isAdmin, loading, profile, refreshProfile, session, signIn, signInWithMagicLink, signOut, signUp, user],
+    [
+      isAdmin,
+      loading,
+      profile,
+      refreshProfile,
+      session,
+      signIn,
+      signInWithMagicLink,
+      signInAnonymously,
+      signInWithOAuth,
+      linkOAuthIdentity,
+      signOut,
+      signUp,
+      user,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
