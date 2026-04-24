@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { supabasePublic } from '../lib/supabaseClient'
 import { useAuth } from '../context/useAuth'
 import SetlistManager from './SetlistManager.jsx'
@@ -20,6 +21,13 @@ if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n))
+}
+
+function getModalContainer() {
+  if (typeof document === 'undefined' || !document.body) return null
+  // Append directly to body so a fixed full-screen layer is not trapped by #modal-root sizing
+  // or `pointer-events` rules; also stacks above the bottom nav (z-index 50) reliably.
+  return document.body
 }
 
 function normalizeAngleRad(rad) {
@@ -386,6 +394,15 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
   const [cloudModalOpen, setCloudModalOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
+  useEffect(() => {
+    if (!settingsOpen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [settingsOpen])
+
   // Unlock AudioContext on first user gesture (avoids "no sound" until a tap).
   useEffect(() => {
     let done = false
@@ -521,7 +538,7 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
     localStorage.setItem('metronome.haptics', hapticsEnabled ? 'on' : 'off')
   }, [hapticsEnabled])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     met.haptics?.setEnabled?.(hapticsEnabled)
   }, [hapticsEnabled, met.haptics])
 
@@ -540,18 +557,23 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
 
   const flashElRef = useRef(null)
   const flashTimersRef = useRef(new Set())
+  const isPlayingForFlashRef = useRef(met.isPlaying)
+  isPlayingForFlashRef.current = met.isPlaying
+  const getAudioTimeForFlashRef = useRef(met.audioClock.getAudioTime)
+  getAudioTimeForFlashRef.current = met.audioClock.getAudioTime
 
   // Flash Mode: CSS overlay synced to AudioContext.currentTime (incl. subdivisions).
+  // met.events is memoized in useMetronome so this does not re-subscribe every beat.
   useEffect(() => {
     if (!met?.events?.onScheduledPulse) return
     const unsubscribe = met.events.onScheduledPulse((evt) => {
       if (!screenFlashEnabled) return
-      if (!met.isPlaying) return
+      if (!isPlayingForFlashRef.current) return
 
       const el = flashElRef.current
       if (!el) return
 
-      const nowAudio = met.audioClock.getAudioTime()
+      const nowAudio = getAudioTimeForFlashRef.current()
       if (nowAudio == null) return
 
       const delayMs = Math.max(0, (evt.when - nowAudio) * 1000)
@@ -589,7 +611,7 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
       for (const id of s) window.clearTimeout(id)
       s.clear()
     }
-  }, [met, screenFlashEnabled])
+  }, [met?.events, screenFlashEnabled])
 
   // Stage Mode flash: Beat 1 only, semi-transparent white, 50ms.
   useEffect(() => {
@@ -598,13 +620,13 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
 
     const unsubscribe = met.events.onScheduledBeat((evt) => {
       if (!stageMode) return
-      if (!met.isPlaying) return
+      if (!isPlayingForFlashRef.current) return
       if (evt?.pulseIndex !== 0) return
 
       const el = flashElRef.current
       if (!el) return
 
-      const nowAudio = met.audioClock.getAudioTime()
+      const nowAudio = getAudioTimeForFlashRef.current()
       if (nowAudio == null) return
 
       const delayMs = Math.max(0, (evt.when - nowAudio) * 1000)
@@ -638,7 +660,7 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
       for (const id of s) window.clearTimeout(id)
       s.clear()
     }
-  }, [met, stageMode])
+  }, [met?.events, stageMode])
 
   const bpm = met.bpm
 
@@ -692,6 +714,7 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
   // iOS defers the synthetic `click` ~300ms after touch; `AudioContext` unlock must run with
   // `pointerup` in the same gesture. Suppress the follow-up `click` so we don't double-toggle.
   const playFabSkipClickRef = useRef(false)
+  const settingsBtnSkipClickRef = useRef(false)
   const [tapHint, setTapHint] = useState('Tap 4+ times')
 
   const [systemStatus, setSystemStatus] = useState(null)
@@ -775,6 +798,28 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
     }
     met.toggle()
   }
+
+  const handleSettingsPointerUp = (e) => {
+    if (e.button !== 0) return
+    if (e.isPrimary === false) return
+    settingsBtnSkipClickRef.current = true
+    window.setTimeout(() => {
+      settingsBtnSkipClickRef.current = false
+    }, 500)
+    setSettingsOpen(true)
+  }
+
+  const handleSettingsClick = (e) => {
+    if (settingsBtnSkipClickRef.current) {
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
+    setSettingsOpen(true)
+  }
+
+  const deviceCanVibrate =
+    typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function'
 
   useEffect(() => {
     if (animationStyle === 'blocks') return
@@ -952,11 +997,19 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
     return (Math.log(clamp(bpm, 1, 400) / 1) / Math.log(400 / 1) * 100).toFixed(1)
   }, [bpm])
 
+  const settingsPortalTarget =
+    settingsOpen && typeof document !== 'undefined' ? getModalContainer() : null
+  const flashPortalTarget = typeof document !== 'undefined' ? getModalContainer() : null
+
   return (
     <>
+    {flashPortalTarget
+      ? createPortal(
+          <div ref={flashElRef} className="metronome__flashOverlay" aria-hidden="true" />,
+          flashPortalTarget,
+        )
+      : null}
     <div className="metronome">
-      <div ref={flashElRef} className="metronome__flashOverlay" aria-hidden="true" />
-
       {/* Count-in overlay */}
       {met.countIn?.active ? (
         <div className="metronome__countIn" role="status" aria-live="polite">
@@ -1002,7 +1055,13 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
           ) : null}
           <label className="metronome__toggle"><input type="checkbox" checked={countInEnabled} onChange={(e) => setCountInEnabled(e.target.checked)} /><span>COUNT-IN</span></label>
           <label className="metronome__toggle"><input type="checkbox" checked={screenFlashEnabled} onChange={(e) => setScreenFlashEnabled(e.target.checked)} /><span>FLASH</span></label>
-          <label className="metronome__toggle"><input type="checkbox" checked={hapticsEnabled} onChange={(e) => setHapticsEnabled(e.target.checked)} /><span>HAPTICS</span></label>
+          <label
+            className="metronome__toggle"
+            title={deviceCanVibrate ? 'Vibration on each beat (where supported)' : 'Web vibration is not available in this browser (e.g. iOS Safari)'}
+          >
+            <input type="checkbox" checked={hapticsEnabled} onChange={(e) => setHapticsEnabled(e.target.checked)} />
+            <span>HAPTICS{!deviceCanVibrate ? ' (N/A)' : ''}</span>
+          </label>
           <label className="metronome__toggle"><input type="checkbox" checked={darkMode} onChange={(e) => setDarkMode(e.target.checked)} /><span>DARK</span></label>
         </div>
       </header>
@@ -1026,12 +1085,16 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
 
       <section className="metronome__panel">
 
-        {/* ── BPM: rotary dial (primary) + fine slider ── */}
+        {/* ── BPM Hero + slider (primary tempo) per DESIGN_RULES.md ── */}
         {stageMode ? null : (
-          <div className="metronome__dialHero">
-            <RotaryDial value={bpm} onChange={(v) => met.setBpm(v)} onTap={handleTap} label="Tempo BPM" />
-            <div className="metronome__dialMeta" aria-live="polite">
-              <span className="metronome__tempoName">{tempoName(bpm)}</span>
+          <div className="metronome__heroWrap">
+            <div className="metronome__bpmGhost" aria-hidden="true">{Math.round(bpm)}</div>
+            <div className="metronome__bpmRow">
+              <div className="metronome__bpmNumber">{Math.round(bpm)}</div>
+              <div className="metronome__bpmAside">
+                <div className="metronome__bpmUnit">BPM</div>
+                <div className="metronome__tempoName">{tempoName(bpm)}</div>
+              </div>
             </div>
           </div>
         )}
@@ -1041,7 +1104,7 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
         {stageMode ? null : (
           <div className="metronome__sliderWrap">
             <input
-              className="metronome__slider metronome__slider--full"
+              className="metronome__slider"
               type="range"
               min={1}
               max={400}
@@ -1052,7 +1115,7 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
                 const t = Number(e.target.value) / 400
                 met.setBpm(Math.round(clamp(1 * Math.pow(400 / 1, t), 1, 400)))
               }}
-              aria-label="Fine tempo (BPM)"
+              aria-label="BPM"
             />
             <div className="metronome__sliderLabels">
               <span>1</span>
@@ -1122,7 +1185,7 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
               <div className="metronome__performanceTop">
                 <button type="button" className="metronome__btn" onClick={() => setStageMode(false)}>Exit</button>
                 <div className="metronome__performanceDial">
-                  <RotaryDial value={bpm} onChange={(v) => met.setBpm(v)} onTap={handleTap} />
+                  <RotaryDial value={bpm} onChange={(v) => met.setBpm(v)} disabled onTap={handleTap} />
                 </div>
               </div>
               <div className="metronome__performanceSongWrap">
@@ -1142,7 +1205,13 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
             <div className="metronome__row">
               <div className="metronome__hint" aria-live="polite">{tapHint}</div>
               {stageMode ? null : (
-                <button type="button" className="metronome__gearBtn metronome__gearBtn--under" onClick={() => setSettingsOpen(true)} aria-label="Open settings">
+                <button
+                  type="button"
+                  className="metronome__gearBtn metronome__gearBtn--under"
+                  onPointerUp={handleSettingsPointerUp}
+                  onClick={handleSettingsClick}
+                  aria-label="Open settings"
+                >
                   ⚙ SETTINGS
                 </button>
               )}
@@ -1158,7 +1227,8 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
       </section>
     </div>
 
-        {settingsOpen ? (
+        {settingsPortalTarget
+          ? createPortal(
           <div className="metronome__drawerBackdrop" role="dialog" aria-modal="true" aria-label="Settings">
             <button
               type="button"
@@ -1422,10 +1492,12 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
                 </div>
               </div>
             </div>
-          </div>
-        ) : null}
+          </div>,
+          settingsPortalTarget,
+            )
+          : null}
 
-        <div className="metronome__stickyBar" role="group" aria-label="Playback controls">
+        <div className="metronome__stickyBar" role="group" aria-label="Playback controls" dir="ltr">
           <button
             type="button"
             className="metronome__tapBtn"
@@ -1452,9 +1524,10 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
           <button
             type="button"
             className="metronome__settingsBtn"
-            onClick={() => setSettingsOpen(true)}
-            aria-label="Open settings"
-            title="Settings"
+            onPointerUp={handleSettingsPointerUp}
+            onClick={handleSettingsClick}
+            aria-label="Open metronome settings (sound, trainer, etc.)"
+            title="Metronome settings"
           >
             ⚙
           </button>

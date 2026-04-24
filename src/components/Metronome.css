@@ -12,10 +12,9 @@
   --text:          rgba(240, 237, 230, 0.45);
   --text-h:        #f0ede6;
   --border:        rgba(240, 237, 230, 0.09);
-  /* High-contrast neon (active / transport) */
-  --accent:        #4ade80;
-  --accent-bg:     rgba(74, 222, 128, 0.12);
-  --accent-border: rgba(74, 222, 128, 0.55);
+  --accent:        #c8440a;
+  --accent-bg:     rgba(200, 68, 10, 0.10);
+  --accent-border: rgba(200, 68, 10, 0.45);
   --danger:        #ef4444;
   --danger-bg:     rgba(239, 68, 68, 0.12);
   --danger-border: rgba(239, 68, 68, 0.55);
@@ -35,9 +34,9 @@
   --text:          rgba(26, 24, 20, 0.45);
   --text-h:        #1a1814;
   --border:        rgba(26, 24, 20, 0.10);
-  --accent:        #16a34a;
-  --accent-bg:     rgba(22, 163, 74, 0.1);
-  --accent-border: rgba(22, 163, 74, 0.4);
+  --accent:        #c8440a;
+  --accent-bg:     rgba(200, 68, 10, 0.08);
+  --accent-border: rgba(200, 68, 10, 0.35);
 }
 
 /* ── Top accent bar ── */
@@ -58,20 +57,21 @@
   padding: 0;
   display: grid;
   gap: 0;
-  font-family: 'Inter', var(--sans, system-ui), sans-serif;
+  font-family: var(--mono);
   background: var(--bg);
   min-height: 100dvh;
   overflow-x: hidden;
 }
 
 /* ── Flash overlay (unchanged) ── */
+/* Portaled to document.body so parent overflow/RTL/ stacking never hides the flash */
 .metronome__flashOverlay {
   position: fixed;
   inset: 0;
   background: rgba(255, 255, 255, 1);
   opacity: 0;
   pointer-events: none;
-  z-index: 9999;
+  z-index: 1000000;
   transition: opacity 50ms linear;
 }
 
@@ -291,26 +291,9 @@
   margin: 16px 20px;
 }
 
-/* ── Rotary dial hero (primary tempo control) ── */
-.metronome__dialHero {
-  display: grid;
-  place-items: center;
-  padding: 12px 16px 4px;
-  gap: 2px;
-}
-.metronome__dialMeta {
-  text-align: center;
-  padding-bottom: 4px;
-}
-
-/* ── Slider (fine adjust under dial) ── */
+/* ── Slider (replaces rotary dial on main view) — DESIGN_RULES.md ── */
 .metronome__sliderWrap {
   padding: 0 20px;
-}
-.metronome__slider--full {
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
 }
 .metronome__slider {
   -webkit-appearance: none;
@@ -376,9 +359,8 @@
   stroke-linecap: square;
   transform: rotate(-90deg);
   transform-origin: 75px 75px;
-  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 40%, transparent));
 }
-.dial__pointer { fill: var(--text-h); opacity: 0.85; }
+.dial__pointer { fill: var(--text-h); opacity: 0.6; }
 .dial__readout {
   position: absolute; inset: 0;
   display: grid; place-content: center;
@@ -634,7 +616,8 @@
   position: fixed;
   left: 0; right: 0;
   bottom: var(--bottom-nav-h, 0px);
-  z-index: 40;
+  /* Above .bottomNav (z-index: 50) so taps hit PLAY / TAP / ⚙ instead of the nav */
+  z-index: 60;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -722,22 +705,27 @@
 
 /* ── Drawer ── */
 .metronome__drawerBackdrop {
+  /* Portaled to document.body (see getModalContainer) so nothing clips or covers this layer */
   position: fixed;
   inset: 0;
-  z-index: 9996;
+  z-index: 2000000;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
+  align-items: stretch;
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  min-height: 100dvh;
   box-sizing: border-box;
   overflow: hidden;
+  pointer-events: auto;
   /* prevent iOS 100vw / horizontal shift; keep sheet clear of notches in landscape */
   left: 0;
   right: 0;
   padding-left: max(0px, env(safe-area-inset-left));
   padding-right: max(0px, env(safe-area-inset-right));
+  padding-bottom: max(0px, env(safe-area-inset-bottom));
 }
 .metronome__drawerScrim {
   position: absolute; inset: 0;
@@ -749,19 +737,21 @@
   z-index: 1;
   display: flex;
   flex-direction: column;
+  flex: 0 1 auto;
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  /* Let the sheet cap below the viewport; children with min-h-0 can scroll */
-  min-height: 0;
+  /* min-height: 0 let flexbox shrink the sheet to nothing in some WebKit builds */
+  min-height: 40vh;
+  max-height: min(88dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 12px));
   box-sizing: border-box;
-  max-height: min(92dvh, calc(100svh - env(safe-area-inset-top, 0px) - 8px));
   border-top: 1px solid var(--border);
   background: var(--surface);
   padding: 12px 16px 0;
-  padding-bottom: max(0px, env(safe-area-inset-bottom));
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
   overflow: hidden;
   border-radius: 16px 16px 0 0;
+  box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.45);
 }
 /* Prevent wide children (accents, steppers) from forcing horizontal panning */
 .metronome__drawerBody,

@@ -33,13 +33,14 @@ function isIOSAddToHomeScreenPWA() {
 
 /**
  * Tuner + metronome used separate AudioContext instances; on iOS only the Tuner path (incl. mic)
- * reliably woke audio. A shared context fixes that. Separately, iOS WebKit has had bugs where
- * StereoPanner is silent; route clicks straight to destination (pan is ignored on iOS / PWA).
+ * reliably woke audio. A shared context fixes that. StereoPanner has been silent on some WebKit
+ * and desktop stacks; the tuner (ref tone / analyser) always hit destination directly, so the
+ * metronome used to sound "only after the tuner worked". Mix clicks to destination like the tuner.
+ * (Pan UI is left in place; output is mono-center.)
  */
 function getMetronomeOutputNode(ctx, panner) {
   if (!ctx) return panner
-  if (isIOSOrIPadOS() || isIOSAddToHomeScreenPWA()) return ctx.destination
-  return panner || ctx.destination
+  return ctx.destination
 }
 
 
@@ -540,6 +541,10 @@ export function useMetronome(options = {}) {
           audioPrimedForCtxRef.current = null
         }
         ctxRef.current = ext
+      } else if (!ctxRef.current) {
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext
+        ctxRef.current = new AudioContextCtor()
+        audioPrimedForCtxRef.current = null
       }
     } else if (!ctxRef.current) {
       const AudioContextCtor = window.AudioContext || window.webkitAudioContext
@@ -615,27 +620,26 @@ export function useMetronome(options = {}) {
   // Call on pointerup / from start() — must run sync (do not await) inside user gesture.
   const ensureUserGestureAudio = useCallback(() => {
     const ctx = ensureContext()
-    const ios = isIOSOrIPadOS() || isIOSAddToHomeScreenPWA()
+    if (!ctx) return null
 
-    if (ios) {
-      // Many iPhone builds unmute the media stack more reliably with HTMLAudio + Web Audio.
-      try {
-        let a = html5SilentAudioRef.current
-        if (!a) {
-          a = new Audio()
-          a.preload = 'auto'
-          a.setAttribute('playsinline', 'true')
-          a.setAttribute('webkit-playsinline', 'true')
-          a.src =
-            'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA='
-          html5SilentAudioRef.current = a
-        }
-        a.volume = 0.0001
-        const p = a.play()
-        if (p && typeof p.then === 'function') void p.catch(() => {})
-      } catch {
-        // ignore
+    // iOS: HTMLAudio is critical. Desktop (Chrome/Edge/Saf): pairing silent HTMLAudio + a tiny
+    // graph tick matches what “fixes” the engine after the tuner; do both everywhere.
+    try {
+      let a = html5SilentAudioRef.current
+      if (!a) {
+        a = new Audio()
+        a.preload = 'auto'
+        a.setAttribute('playsinline', 'true')
+        a.setAttribute('webkit-playsinline', 'true')
+        a.src =
+          'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA='
+        html5SilentAudioRef.current = a
       }
+      a.volume = 0.0001
+      const p = a.play()
+      if (p && typeof p.then === 'function') void p.catch(() => {})
+    } catch {
+      // ignore
     }
 
     try {
@@ -644,13 +648,8 @@ export function useMetronome(options = {}) {
       // ignore
     }
 
-    if (ios) {
-      primeAudioGraph(ctx) // once per AudioContext: silent buffer
-      // Every iOS unlock: inaudible osc (pointer gesture can be void if only buffer ran earlier).
-      iosInaudibleOscKick(ctx)
-    } else {
-      primeAudioGraph(ctx)
-    }
+    primeAudioGraph(ctx)
+    iosInaudibleOscKick(ctx)
 
     try {
       if (ctx.state === 'suspended' || ctx.state === 'interrupted') void ctx.resume()
@@ -1258,9 +1257,11 @@ export function useMetronome(options = {}) {
 
   const start = useCallback(() => {
     if (isPlaying) return
-    // Safari / iOS / PWA: everything that unlocks audio must run synchronously in the gesture
-    // stack. Do NOT defer the first schedule behind ctx.resume().then() — audio stays silent.
+    // Unlock + prime in the same gesture, then start transport only once the context is actually
+    // running. Fire-and-forget ctx.resume() is often still "suspended" for the first schedule;
+    // the tuner path awaited resume() so it appeared to "fix" the metronome.
     const ctx = ensureUserGestureAudio()
+    if (!ctx) return
 
     const meter = getMeter(timeSignature)
     meterRef.current = meter
@@ -1377,7 +1378,28 @@ export function useMetronome(options = {}) {
       }
     }
 
-    void run()
+    const kick = () => {
+      void run()
+    }
+
+    if (ctx.state === 'running') {
+      kick()
+    } else {
+      const p = ctx.resume?.()
+      if (p && typeof p.then === 'function') {
+        void p
+          .then(() => {
+            ensureUserGestureAudio()
+            kick()
+          })
+          .catch(() => {
+            ensureUserGestureAudio()
+            kick()
+          })
+      } else {
+        kick()
+      }
+    }
   }, [
     applyBpm,
     ensureUserGestureAudio,
@@ -1566,9 +1588,17 @@ export function useMetronome(options = {}) {
 
       const ctx = ctxRef.current
       ctxRef.current = null
+      pannerRef.current = null
+
+      // App passes a shared AudioContext (Tuner + metronome). Never close() it here — on
+      // React 18 Strict Mode or any remount, close() would leave a dead context in
+      // getSharedAudioContext() and sound would fail until a full page reload. Only close
+      // when this hook created its own context (no getAudioContext option).
+      const shared = typeof getAudioContextOption === 'function'
+      if (shared) return
       if (ctx && typeof ctx.close === 'function') ctx.close()
     }
-  }, [])
+  }, [getAudioContextOption])
 
   const meter = useMemo(() => getMeter(timeSignature), [timeSignature])
 
@@ -1596,6 +1626,21 @@ export function useMetronome(options = {}) {
     const spq = secondsPerQuarter(bpmRef.current)
     return spq * (4 / meterNow.denominator)
   }, [])
+
+  // Stable object identities so metronome UI (flash, etc.) does not re-subscribe every render/beat.
+  const metEvents = useMemo(
+    () => ({ onScheduledBeat, onScheduledPulse }),
+    [onScheduledBeat, onScheduledPulse],
+  )
+  const metAudioClock = useMemo(
+    () => ({
+      getAudioTime,
+      getNextPulseTime,
+      getPulseIndex,
+      getSecondsPerPulse,
+    }),
+    [getAudioTime, getNextPulseTime, getPulseIndex, getSecondsPerPulse],
+  )
 
   const configureTrainer = useCallback((config = {}) => {
     const next = {
@@ -1689,7 +1734,11 @@ export function useMetronome(options = {}) {
     setSound,
     haptics: {
       enabled: hapticsEnabled,
-      setEnabled: (v) => setHapticsEnabled(Boolean(v)),
+      setEnabled: (v) => {
+        const b = Boolean(v)
+        hapticsEnabledRef.current = b
+        setHapticsEnabled(b)
+      },
     },
     pan,
     setPan: (v) => setPan(Math.max(-1, Math.min(1, Number(v) || 0))),
@@ -1834,16 +1883,8 @@ export function useMetronome(options = {}) {
     auth: {
       isAnonymous,
     },
-    events: {
-      onScheduledBeat,
-      onScheduledPulse,
-    },
-    audioClock: {
-      getAudioTime,
-      getNextPulseTime,
-      getPulseIndex,
-      getSecondsPerPulse,
-    },
+    events: metEvents,
+    audioClock: metAudioClock,
     audio: {
       // Best-effort: create context, prime the mix bus, resume() — all synchronously (use from
       // onPointerDown / touchstart before play on iOS Safari & standalone web app).

@@ -8,9 +8,10 @@
   --bg: #fff;
   --border: #e5e4e7;
   --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
+  /* Aligned with Metronome v3 + DESIGN_RULES (orange) — not legacy purple / random defaults */
+  --accent: #c8440a;
+  --accent-bg: rgba(200, 68, 10, 0.1);
+  --accent-border: rgba(200, 68, 10, 0.45);
   --social-bg: rgba(244, 243, 236, 0.5);
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
@@ -47,9 +48,9 @@
   --bg: #fff;
   --border: #e5e4e7;
   --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
+  --accent: #c8440a;
+  --accent-bg: rgba(200, 68, 10, 0.1);
+  --accent-border: rgba(200, 68, 10, 0.45);
   --social-bg: rgba(244, 243, 236, 0.5);
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
@@ -65,9 +66,9 @@
   --surface-2: #23211d; /* elevated */
   --border: rgba(250, 250, 249, 0.08); /* hairline */
   --code-bg: #1f1e1a;
-  --accent: #4ade80; /* green-400 */
-  --accent-bg: rgba(74, 222, 128, 0.14);
-  --accent-border: rgba(74, 222, 128, 0.55);
+  --accent: #c8440a; /* v3 orange — aligned with Metronome / DESIGN_RULES */
+  --accent-bg: rgba(200, 68, 10, 0.14);
+  --accent-border: rgba(200, 68, 10, 0.45);
   --social-bg: rgba(42, 39, 35, 0.55);
   --danger: #ef4444; /* red-500 */
   --danger-bg: rgba(239, 68, 68, 0.14);
@@ -97,6 +98,20 @@ body {
 #root {
   min-height: 100dvh;
   box-sizing: border-box;
+}
+
+/* Fixed layer for portaled UI (settings drawer) — not clipped by #root; inherits global tokens */
+#modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  pointer-events: none;
+  box-sizing: border-box;
+  isolation: isolate;
+}
+
+#modal-root > * {
+  pointer-events: auto;
 }
 
 h1,

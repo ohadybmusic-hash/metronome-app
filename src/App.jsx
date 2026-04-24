@@ -4,7 +4,7 @@ import { Suspense, lazy } from 'react'
 import AuthBar from './components/AuthBar.jsx'
 import AuthGate from './components/AuthGate.jsx'
 import { useAuth } from './context/useAuth'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useMetronome } from './hooks/useMetronome'
 import SetlistManager from './components/SetlistManager.jsx'
 import AudioSessionPrimer from './components/AudioSessionPrimer.jsx'
@@ -19,8 +19,13 @@ function App() {
   const sharedAudioContextRef = useRef(null)
   const getSharedAudioContext = useCallback(() => {
     if (typeof window === 'undefined') return null
+    const C = window.AudioContext || window.webkitAudioContext
+    // If useMetronome or anything ever closed the shared context, create a new one; otherwise
+    // the ref holds a dead AudioContext and playback is silent until a full reload.
+    if (sharedAudioContextRef.current?.state === 'closed') {
+      sharedAudioContextRef.current = null
+    }
     if (!sharedAudioContextRef.current) {
-      const C = window.AudioContext || window.webkitAudioContext
       try {
         sharedAudioContextRef.current = new C({ latencyHint: 'interactive' })
       } catch {
@@ -70,15 +75,22 @@ function App() {
 
   const showBottomNav = Boolean(user)
 
+  // Portaled overlays (e.g. metronome settings) do not sit under the App flex wrapper; expose nav
+  // height on :root so their padding clears the bar.
+  useLayoutEffect(() => {
+    const el = document.documentElement
+    el.style.setProperty('--bottom-nav-h', showBottomNav ? '96px' : '0px')
+    return () => {
+      el.style.removeProperty('--bottom-nav-h')
+    }
+  }, [showBottomNav])
+
   return (
     <div
       className="min-h-[100dvh] bg-[var(--bg)] text-[var(--text-h)]"
-      style={{
-        '--bottom-nav-h': showBottomNav ? '96px' : '0px',
-      }}
     >
       <div
-        className={`mx-auto w-full min-w-0 max-w-md sm:max-w-2xl overflow-x-hidden px-3 sm:px-6 flex flex-col items-stretch ${
+        className={`mx-auto w-full min-w-0 max-w-6xl overflow-x-hidden px-3 sm:px-8 flex flex-col items-stretch ${
           user && tab === 'metronome' ? 'py-3 sm:py-5 pb-0' : 'py-6 sm:py-8 pb-28'
         }`}
       >
@@ -130,8 +142,8 @@ function App() {
             <span className="bottomNav__label">Setlists</span>
           </button>
           <button type="button" className={`bottomNav__item ${tab === 'settings' ? 'is-active' : ''}`} onClick={() => setTab('settings')}>
-            <span className="bottomNav__icon" aria-hidden="true">⚙</span>
-            <span className="bottomNav__label">Settings</span>
+            <span className="bottomNav__icon" aria-hidden="true">👤</span>
+            <span className="bottomNav__label">Account</span>
           </button>
         </nav>
       ) : null}
