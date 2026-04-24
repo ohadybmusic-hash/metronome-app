@@ -258,8 +258,9 @@ export function useMetronome(options = {}) {
     initialBpm = 120,
     initialTimeSignature = '4/4',
     initialSubdivision = 'quarter',
-    lookaheadMs = 25,
-    scheduleAheadSeconds = 0.1,
+    lookaheadMs = 20,
+    /** How far ahead of currentTime to schedule audio (covers 400 BPM + dense subdivisions). */
+    scheduleAheadSeconds = 0.16,
     /** If set, use this (e.g. App-level) AudioContext so Tuner + metronome share one iOS engine. */
     getAudioContext: getAudioContextOption,
   } = options
@@ -273,6 +274,7 @@ export function useMetronome(options = {}) {
   const [sound, setSound] = useState('beep') // 'beep' | 'voiceNumbers' | 'voiceCount'
 
   const [hapticsEnabled, setHapticsEnabled] = useState(false)
+  const hapticsEnabledRef = useRef(false)
   const [pan, setPan] = useState(0)
 
   const [polyrhythmEnabled, setPolyrhythmEnabled] = useState(false)
@@ -428,6 +430,10 @@ export function useMetronome(options = {}) {
   useEffect(() => {
     beatAccentsRef.current = beatAccents
   }, [beatAccents])
+
+  useEffect(() => {
+    hapticsEnabledRef.current = hapticsEnabled
+  }, [hapticsEnabled])
 
   useEffect(() => {
     internalClockRef.current.enabled = internalClockEnabled
@@ -807,11 +813,17 @@ export function useMetronome(options = {}) {
         }
       }
 
-      // Haptics: schedule vibration aligned to audio clock (beats + subdivisions).
-      if (!gapMuted && hapticsEnabled && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      // Haptics: one pulse per primary subdivision (not every 16th); downbeat = double pattern.
+      if (
+        i === 0 &&
+        !gapMuted &&
+        hapticsEnabledRef.current &&
+        typeof navigator !== 'undefined' &&
+        'vibrate' in navigator
+      ) {
         const nowAudio = ctx.currentTime
         const delayMs = Math.max(0, (when - nowAudio) * 1000)
-        const pattern = isMeasureDownbeat ? [70, 30, 70] : [40]
+        const pattern = isMeasureDownbeat ? [50, 40, 50] : [50]
         window.setTimeout(() => {
           try {
             navigator.vibrate(pattern)
@@ -1464,6 +1476,7 @@ export function useMetronome(options = {}) {
     try {
       ms.setActionHandler('play', onPlay)
       ms.setActionHandler('pause', onPause)
+      ms.setActionHandler('stop', onPause)
     } catch {
       // ignore
     }
@@ -1478,6 +1491,7 @@ export function useMetronome(options = {}) {
       try {
         ms.setActionHandler('play', null)
         ms.setActionHandler('pause', null)
+        ms.setActionHandler('stop', null)
       } catch {
         // ignore
       }

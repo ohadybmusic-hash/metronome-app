@@ -78,7 +78,7 @@ function App() {
       }}
     >
       <div
-        className={`mx-auto w-full min-w-0 max-w-6xl overflow-x-hidden px-3 sm:px-8 flex flex-col items-stretch ${
+        className={`mx-auto w-full min-w-0 max-w-md sm:max-w-2xl overflow-x-hidden px-3 sm:px-6 flex flex-col items-stretch ${
           user && tab === 'metronome' ? 'py-3 sm:py-5 pb-0' : 'py-6 sm:py-8 pb-28'
         }`}
       >

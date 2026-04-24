@@ -12,9 +12,10 @@
   --text:          rgba(240, 237, 230, 0.45);
   --text-h:        #f0ede6;
   --border:        rgba(240, 237, 230, 0.09);
-  --accent:        #c8440a;
-  --accent-bg:     rgba(200, 68, 10, 0.10);
-  --accent-border: rgba(200, 68, 10, 0.45);
+  /* High-contrast neon (active / transport) */
+  --accent:        #4ade80;
+  --accent-bg:     rgba(74, 222, 128, 0.12);
+  --accent-border: rgba(74, 222, 128, 0.55);
   --danger:        #ef4444;
   --danger-bg:     rgba(239, 68, 68, 0.12);
   --danger-border: rgba(239, 68, 68, 0.55);
@@ -34,9 +35,9 @@
   --text:          rgba(26, 24, 20, 0.45);
   --text-h:        #1a1814;
   --border:        rgba(26, 24, 20, 0.10);
-  --accent:        #c8440a;
-  --accent-bg:     rgba(200, 68, 10, 0.08);
-  --accent-border: rgba(200, 68, 10, 0.35);
+  --accent:        #16a34a;
+  --accent-bg:     rgba(22, 163, 74, 0.1);
+  --accent-border: rgba(22, 163, 74, 0.4);
 }
 
 /* ── Top accent bar ── */
@@ -57,7 +58,7 @@
   padding: 0;
   display: grid;
   gap: 0;
-  font-family: var(--mono);
+  font-family: 'Inter', var(--sans, system-ui), sans-serif;
   background: var(--bg);
   min-height: 100dvh;
   overflow-x: hidden;
@@ -290,9 +291,26 @@
   margin: 16px 20px;
 }
 
-/* ── Slider (replaces rotary dial on main view) ── */
+/* ── Rotary dial hero (primary tempo control) ── */
+.metronome__dialHero {
+  display: grid;
+  place-items: center;
+  padding: 12px 16px 4px;
+  gap: 2px;
+}
+.metronome__dialMeta {
+  text-align: center;
+  padding-bottom: 4px;
+}
+
+/* ── Slider (fine adjust under dial) ── */
 .metronome__sliderWrap {
   padding: 0 20px;
+}
+.metronome__slider--full {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 .metronome__slider {
   -webkit-appearance: none;
@@ -358,8 +376,9 @@
   stroke-linecap: square;
   transform: rotate(-90deg);
   transform-origin: 75px 75px;
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 40%, transparent));
 }
-.dial__pointer { fill: var(--text-h); opacity: 0.6; }
+.dial__pointer { fill: var(--text-h); opacity: 0.85; }
 .dial__readout {
   position: absolute; inset: 0;
   display: grid; place-content: center;

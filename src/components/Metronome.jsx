@@ -1025,27 +1025,22 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
 
       <section className="metronome__panel">
 
-        {/* ── BPM Hero ── */}
+        {/* ── BPM: rotary dial (primary) + fine slider ── */}
         {stageMode ? null : (
-          <div className="metronome__heroWrap">
-            <div className="metronome__bpmGhost" aria-hidden="true">{Math.round(bpm)}</div>
-            <div className="metronome__bpmRow">
-              <div className="metronome__bpmNumber">{Math.round(bpm)}</div>
-              <div className="metronome__bpmAside">
-                <div className="metronome__bpmUnit">BPM</div>
-                <div className="metronome__tempoName">{tempoName(bpm)}</div>
-              </div>
+          <div className="metronome__dialHero">
+            <RotaryDial value={bpm} onChange={(v) => met.setBpm(v)} onTap={handleTap} label="Tempo BPM" />
+            <div className="metronome__dialMeta" aria-live="polite">
+              <span className="metronome__tempoName">{tempoName(bpm)}</span>
             </div>
           </div>
         )}
 
         <div className="metronome__rule" />
 
-        {/* ── BPM Slider ── */}
         {stageMode ? null : (
           <div className="metronome__sliderWrap">
             <input
-              className="metronome__slider"
+              className="metronome__slider metronome__slider--full"
               type="range"
               min={1}
               max={400}
@@ -1056,10 +1051,12 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
                 const t = Number(e.target.value) / 400
                 met.setBpm(Math.round(clamp(1 * Math.pow(400 / 1, t), 1, 400)))
               }}
-              aria-label="BPM"
+              aria-label="Fine tempo (BPM)"
             />
             <div className="metronome__sliderLabels">
-              <span>1</span><span>200</span><span>400</span>
+              <span>1</span>
+              <span>200</span>
+              <span>400</span>
             </div>
           </div>
         )}
@@ -1124,7 +1121,7 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
               <div className="metronome__performanceTop">
                 <button type="button" className="metronome__btn" onClick={() => setStageMode(false)}>Exit</button>
                 <div className="metronome__performanceDial">
-                  <RotaryDial value={bpm} onChange={(v) => met.setBpm(v)} disabled onTap={handleTap} />
+                  <RotaryDial value={bpm} onChange={(v) => met.setBpm(v)} onTap={handleTap} />
                 </div>
               </div>
               <div className="metronome__performanceSongWrap">

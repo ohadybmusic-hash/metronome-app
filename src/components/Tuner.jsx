@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './Tuner.css'
 import Stepper from './Stepper.jsx'
+import { useScreenWakeLock } from '../hooks/useScreenWakeLock.js'
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n))
@@ -113,6 +114,8 @@ export default function Tuner({ getAudioContext } = {}) {
   const [referencePitch, setReferencePitch] = useState(440)
   const [tuningId, setTuningId] = useState('gtr-standard')
   const [strobeMode, setStrobeMode] = useState(true)
+
+  useScreenWakeLock(listening || refToneOn)
 
   const audioRef = useRef({
     ctx: null,
