@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabasePublic } from '../lib/supabaseClient'
 import { useAuth } from '../context/useAuth'
@@ -393,6 +393,7 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
   const [stageMode, setStageMode] = useState(false)
   const [cloudModalOpen, setCloudModalOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const settingsDrawerBodyRef = useRef(null)
 
   useEffect(() => {
     if (!settingsOpen) return
@@ -401,6 +402,12 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
     return () => {
       document.body.style.overflow = prev
     }
+  }, [settingsOpen])
+
+  useLayoutEffect(() => {
+    if (!settingsOpen) return
+    const el = settingsDrawerBodyRef.current
+    if (el) el.scrollTop = 0
   }, [settingsOpen])
 
   // Unlock AudioContext on first user gesture (avoids "no sound" until a tap).
@@ -711,10 +718,11 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
     times: [],
     lastTapAt: 0,
   })
-  // iOS defers the synthetic `click` ~300ms after touch; `AudioContext` unlock must run with
-  // `pointerup` in the same gesture. Suppress the follow-up `click` so we don't double-toggle.
+  // iOS/Safari: synthetic `click` can fire late; Web Audio `resume` + scheduling must run on
+  // `pointerup` in the same user gesture. Suppress the follow-up `click` so we don’t double-toggle.
   const playFabSkipClickRef = useRef(false)
-  const settingsBtnSkipClickRef = useRef(false)
+  // iOS WebKit can fire pointerup + touchend for one tap — debounce physical events.
+  const playFabLastPhysicalAt = useRef(0)
   const [tapHint, setTapHint] = useState('Tap 4+ times')
 
   const [systemStatus, setSystemStatus] = useState(null)
@@ -770,9 +778,12 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
     setTapHint(`Set to ${nextBpm} BPM`)
   }
 
-  const handlePlayFabPointerUp = (e) => {
-    if (e.button !== 0) return
-    if (e.isPrimary === false) return
+  const runPlayUserAction = (e) => {
+    if (e?.pointerType === 'mouse' && e.button !== 0) return
+    const now = performance.now()
+    if (playFabLastPhysicalAt.current > 0 && now - playFabLastPhysicalAt.current < 50) return
+    playFabLastPhysicalAt.current = now
+
     playFabSkipClickRef.current = true
     window.setTimeout(() => {
       playFabSkipClickRef.current = false
@@ -783,6 +794,14 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
       // ignore
     }
     met.toggle()
+  }
+
+  const handlePlayFabPointerUp = (e) => {
+    runPlayUserAction(e)
+  }
+
+  const handlePlayFabTouchEnd = (e) => {
+    runPlayUserAction(e)
   }
 
   const handlePlayFabClick = (e) => {
@@ -799,24 +818,12 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
     met.toggle()
   }
 
-  const handleSettingsPointerUp = (e) => {
-    if (e.button !== 0) return
-    if (e.isPrimary === false) return
-    settingsBtnSkipClickRef.current = true
-    window.setTimeout(() => {
-      settingsBtnSkipClickRef.current = false
-    }, 500)
+  // Settings does not need the PLAY button’s pointerup/click de-dupe; that pattern broke opening
+  // the sheet on some iOS / mobile WebKit builds (synthetic click suppressed, pointer edge cases).
+  const openMetronomeSettings = useCallback((e) => {
+    e?.stopPropagation?.()
     setSettingsOpen(true)
-  }
-
-  const handleSettingsClick = (e) => {
-    if (settingsBtnSkipClickRef.current) {
-      e.preventDefault()
-      e.stopPropagation()
-      return
-    }
-    setSettingsOpen(true)
-  }
+  }, [])
 
   const deviceCanVibrate =
     typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function'
@@ -1208,8 +1215,7 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
                 <button
                   type="button"
                   className="metronome__gearBtn metronome__gearBtn--under"
-                  onPointerUp={handleSettingsPointerUp}
-                  onClick={handleSettingsClick}
+                  onClick={openMetronomeSettings}
                   aria-label="Open settings"
                 >
                   ⚙ SETTINGS
@@ -1245,7 +1251,7 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
                 </button>
               </div>
 
-              <div className="metronome__drawerBody">
+              <div className="metronome__drawerBody" ref={settingsDrawerBodyRef}>
                 <div className="metronome__drawerSection">
                   <div className="metronome__drawerSectionTitle">Subdivision settings</div>
 
@@ -1310,25 +1316,6 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
                       <option value="ring">Progress ring</option>
                       <option value="blocks">Beat blocks</option>
                     </select>
-                  </label>
-                </div>
-
-                <div className="metronome__drawerSection">
-                  <div className="metronome__drawerSectionTitle">Sound</div>
-
-                  <label className="metronome__label">
-                    Sound
-                    <select className="metronome__select" value={met.sound} onChange={(e) => met.setSound(e.target.value)}>
-                      <option value="beep">Beep</option>
-                      <option value="voiceNumbers">Voice (numbers)</option>
-                      <option value="voiceCount">Voice Counting (One–Four)</option>
-                    </select>
-                  </label>
-
-                  <label className="metronome__label">
-                    Pan
-                    <input className="metronome__range" type="range" min={-1} max={1} step={0.01} value={met.pan} onChange={(e) => met.setPan(e.target.value)} />
-                    <div className="metronome__rangeValue">{Number(met.pan).toFixed(2)}</div>
                   </label>
                 </div>
 
@@ -1490,6 +1477,25 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
                     </div>
                   </label>
                 </div>
+
+                <div className="metronome__drawerSection">
+                  <div className="metronome__drawerSectionTitle">Sound</div>
+
+                  <label className="metronome__label">
+                    Sound
+                    <select className="metronome__select" value={met.sound} onChange={(e) => met.setSound(e.target.value)}>
+                      <option value="beep">Beep</option>
+                      <option value="voiceNumbers">Voice (numbers)</option>
+                      <option value="voiceCount">Voice Counting (One–Four)</option>
+                    </select>
+                  </label>
+
+                  <label className="metronome__label">
+                    Pan
+                    <input className="metronome__range" type="range" min={-1} max={1} step={0.01} value={met.pan} onChange={(e) => met.setPan(e.target.value)} />
+                    <div className="metronome__rangeValue">{Number(met.pan).toFixed(2)}</div>
+                  </label>
+                </div>
               </div>
             </div>
           </div>,
@@ -1497,7 +1503,12 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
             )
           : null}
 
-        <div className="metronome__stickyBar" role="group" aria-label="Playback controls" dir="ltr">
+        <div
+          className="metronome__stickyBar"
+          role="group"
+          aria-label="Playback controls"
+          dir="ltr"
+        >
           <button
             type="button"
             className="metronome__tapBtn"
@@ -1513,10 +1524,11 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
               try {
                 met.audio?.ensure?.()
               } catch {
-                // ignore
+                // ignore — resume AudioContext in same touch sequence as pointerup/click
               }
             }}
             onPointerUp={handlePlayFabPointerUp}
+            onTouchEnd={handlePlayFabTouchEnd}
             onClick={handlePlayFabClick}
           >
             {met.countIn?.active ? 'CANCEL' : met.isPlaying ? 'PAUSE' : 'PLAY'}
@@ -1524,8 +1536,7 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
           <button
             type="button"
             className="metronome__settingsBtn"
-            onPointerUp={handleSettingsPointerUp}
-            onClick={handleSettingsClick}
+            onClick={openMetronomeSettings}
             aria-label="Open metronome settings (sound, trainer, etc.)"
             title="Metronome settings"
           >

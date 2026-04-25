@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+// Trim so accidental whitespace in Vite/Vercel env does not break fetch (Safari is strict about URLs).
+const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim()
+const supabaseAnonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim()
 
 if (!supabaseUrl || !supabaseAnonKey) {
   // Fail fast in dev if env vars are missing.
@@ -10,12 +11,20 @@ if (!supabaseUrl || !supabaseAnonKey) {
   )
 }
 
+const authOptions = {
+  flowType: 'pkce',
+  autoRefreshToken: true,
+  detectSessionInUrl: true,
+  persistSession: true,
+}
+
 // Authenticated client (persists session, used for user-specific tables).
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, { auth: authOptions })
 
 // Public client (no persisted session) to avoid auth-token storage locks for anon queries.
 export const supabasePublic = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
+    ...authOptions,
     persistSession: false,
     autoRefreshToken: false,
     detectSessionInUrl: false,

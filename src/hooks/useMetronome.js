@@ -835,7 +835,7 @@ export function useMetronome(options = {}) {
         const n = pulseIndex + 1
         const buf = voiceBuffersRef.current.buffers?.[n]
         if (buf) {
-          createVoiceAt(ctx, when, output, buf, { volume: isDownbeat ? 0.9 : 0.75 })
+          createVoiceAt(ctx, when, output, buf, { volume: isDownbeat ? 1 : 0.88 })
         } else if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
           const delayMs = Math.max(0, (when - ctx.currentTime) * 1000)
           window.setTimeout(() => {
@@ -858,7 +858,7 @@ export function useMetronome(options = {}) {
         const sampleN = beatNum === 1 ? 1 : beatNum >= 2 && beatNum <= 4 ? beatNum : null
         const buf = sampleN ? countBuffersRef.current.buffers?.[sampleN] : null
         if (buf) {
-          createVoiceAt(ctx, when, output, buf, { volume: beatNum === 1 ? 0.95 : 0.85 })
+          createVoiceAt(ctx, when, output, buf, { volume: beatNum === 1 ? 1 : 0.92 })
         } else if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
           const delayMs = Math.max(0, (when - ctx.currentTime) * 1000)
           window.setTimeout(() => {
@@ -879,8 +879,9 @@ export function useMetronome(options = {}) {
 
       const timbre = getAccentTimbre(isPrimary ? beatAccentLevel : 'NORMAL')
       const frequency = isDownbeat ? 1200 : timbre.freq
-      const baseVolume = isDownbeat ? 0.22 : isPrimary ? 0.18 : 0.12
-      const volume = baseVolume * mul
+      // Default: as loud as practical (peaks ~1.0) — short beeps/wood; relative balance via `mul`
+      const baseVolume = isDownbeat ? 0.9 : isPrimary ? 0.75 : 0.52
+      const volume = Math.min(1, baseVolume * mul)
 
       if (timbre.kind === 'wood') {
         createWoodblockAt(ctx, when, output, { frequency, volume })
@@ -1242,7 +1243,7 @@ export function useMetronome(options = {}) {
           const output = getMetronomeOutputNode(ctx, pannerRef.current)
           createWoodblockAt(ctx, nextPolyTimeRef.current, output, {
             frequency: 2200,
-            volume: 0.12,
+            volume: 0.55,
           })
         }
         polyIndexRef.current = (polyIndexRef.current + 1) % polyBeats
@@ -1310,7 +1311,7 @@ export function useMetronome(options = {}) {
 
         for (let i = 0; i < totalBeats; i += 1) {
           const when = startAt + i * secondsPerBeat
-          createWoodblockAt(ctx, when, output, { frequency: woodFreq, volume: 0.16 })
+          createWoodblockAt(ctx, when, output, { frequency: woodFreq, volume: 0.7 })
           const id = window.setTimeout(() => {
             setCountInBeatsRemaining((prev) => Math.max(0, prev - 1))
           }, Math.max(0, (when - ctx.currentTime) * 1000))
@@ -1389,15 +1390,24 @@ export function useMetronome(options = {}) {
       if (p && typeof p.then === 'function') {
         void p
           .then(() => {
-            ensureUserGestureAudio()
-            kick()
+            // iOS WebKit: state may flip in the next frame; re-prime and kick after rAF so the first
+            // scheduled clicks aren’t in a “still suspended / invalid gesture” edge case.
+            requestAnimationFrame(() => {
+              ensureUserGestureAudio()
+              kick()
+            })
           })
           .catch(() => {
-            ensureUserGestureAudio()
-            kick()
+            requestAnimationFrame(() => {
+              ensureUserGestureAudio()
+              kick()
+            })
           })
       } else {
-        kick()
+        requestAnimationFrame(() => {
+          ensureUserGestureAudio()
+          kick()
+        })
       }
     }
   }, [
@@ -1589,6 +1599,7 @@ export function useMetronome(options = {}) {
       const ctx = ctxRef.current
       ctxRef.current = null
       pannerRef.current = null
+      audioPrimedForCtxRef.current = null
 
       // App passes a shared AudioContext (Tuner + metronome). Never close() it here — on
       // React 18 Strict Mode or any remount, close() would leave a dead context in

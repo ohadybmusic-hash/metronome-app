@@ -26,6 +26,11 @@ async function withTimeout(promise, ms) {
   }
 }
 
+/** Same origin Supabase is allowed to redirect to (Site URL + Redirect URLs in dashboard). */
+function authAppOrigin() {
+  return window.location.origin
+}
+
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [user, setUser] = useState(null)
@@ -153,7 +158,7 @@ export function AuthProvider({ children }) {
     const { data, error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: authAppOrigin(),
       },
     })
     if (error) throw error
@@ -172,7 +177,7 @@ export function AuthProvider({ children }) {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: p,
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: authAppOrigin(),
       },
     })
     if (error) throw error
@@ -185,7 +190,7 @@ export function AuthProvider({ children }) {
     const { data, error } = await supabase.auth.linkIdentity({
       provider: p,
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: authAppOrigin(),
       },
     })
     if (error) throw error

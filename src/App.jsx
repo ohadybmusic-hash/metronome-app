@@ -49,7 +49,7 @@ function App() {
   // Safari / iOS / Add to Home Screen: unlock Web Audio on the first real touch anywhere so a
   // later tap on PLAY is not the only gesture that can reach the audio graph.
   useEffect(() => {
-    if (!user || !ensureAudio) return
+    if (!ensureAudio) return
     let didUnlock = false
     const onFirstPointer = () => {
       if (didUnlock) return
@@ -66,7 +66,7 @@ function App() {
       document.removeEventListener('touchstart', onFirstPointer, { capture: true })
       document.removeEventListener('pointerdown', onFirstPointer, { capture: true })
     }
-  }, [user, ensureAudio])
+  }, [ensureAudio])
 
   // Default to dark dashboard theme.
   useEffect(() => {
@@ -74,16 +74,65 @@ function App() {
   }, [])
 
   const showBottomNav = Boolean(user)
+  const bottomNavRef = useRef(null)
 
-  // Portaled overlays (e.g. metronome settings) do not sit under the App flex wrapper; expose nav
-  // height on :root so their padding clears the bar.
+  // Measure real `.bottomNav` height (safe area, labels, font size). Hardcoding 96px made the
+  // metronome sticky bar overlap the tab bar (z-60 over z-50) or leave a wrong gap. Match tuner: same
+  // outer `pb-28` on the main column as other tabs.
   useLayoutEffect(() => {
-    const el = document.documentElement
-    el.style.setProperty('--bottom-nav-h', showBottomNav ? '96px' : '0px')
-    return () => {
-      el.style.removeProperty('--bottom-nav-h')
+    const root = document.documentElement
+    if (!showBottomNav) {
+      root.style.setProperty('--bottom-nav-h', '0px')
+      return () => {
+        root.style.removeProperty('--bottom-nav-h')
+      }
     }
-  }, [showBottomNav])
+
+    const isIOS = typeof navigator !== 'undefined' && /iP(hone|ad|od)/.test(navigator.userAgent)
+
+    const setVar = () => {
+      const nav = bottomNavRef.current
+      if (!nav) {
+        root.style.setProperty('--bottom-nav-h', isIOS ? '112px' : '96px')
+        return
+      }
+      // getBoundingClientRect + margin avoids under-counting vs offsetHeight; extra px prevents
+      // the play bar (lower z-index) from sitting under the nav and stealing/ blocking taps.
+      // iOS (esp. PWA, dynamic toolbar): add margin — mis-measure makes PLAY taps hit the tab bar.
+      const hPx = Math.ceil(nav.getBoundingClientRect().height)
+      const h = Math.max(hPx + 4 + (isIOS ? 16 : 0), isIOS ? 100 : 88)
+      root.style.setProperty('--bottom-nav-h', `${h}px`)
+    }
+
+    setVar()
+    requestAnimationFrame(() => {
+      setVar()
+      requestAnimationFrame(setVar)
+    })
+    if (document.fonts?.ready) {
+      void document.fonts.ready.then(() => {
+        setVar()
+      })
+    }
+    const nav = bottomNavRef.current
+    const ro = typeof ResizeObserver !== 'undefined' && nav ? new ResizeObserver(setVar) : null
+    if (ro && nav) ro.observe(nav)
+    window.addEventListener('resize', setVar)
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null
+    if (vv) {
+      vv.addEventListener('resize', setVar)
+      vv.addEventListener('scroll', setVar)
+    }
+    return () => {
+      ro?.disconnect()
+      window.removeEventListener('resize', setVar)
+      if (vv) {
+        vv.removeEventListener('resize', setVar)
+        vv.removeEventListener('scroll', setVar)
+      }
+      root.style.removeProperty('--bottom-nav-h')
+    }
+  }, [showBottomNav, tab, user])
 
   return (
     <div
@@ -91,7 +140,11 @@ function App() {
     >
       <div
         className={`mx-auto w-full min-w-0 max-w-6xl overflow-x-hidden px-3 sm:px-8 flex flex-col items-stretch ${
-          user && tab === 'metronome' ? 'py-3 sm:py-5 pb-0' : 'py-6 sm:py-8 pb-28'
+          user
+            ? tab === 'metronome'
+              ? 'py-3 sm:py-5 pb-28'
+              : 'py-6 sm:py-8 pb-28'
+            : 'py-6 sm:py-8 pb-28'
         }`}
       >
         {!user ? (
@@ -128,7 +181,7 @@ function App() {
       </div>
 
       {showBottomNav ? (
-        <nav className="bottomNav" role="navigation" aria-label="Bottom navigation">
+        <nav ref={bottomNavRef} className="bottomNav" role="navigation" aria-label="Bottom navigation">
           <button type="button" className={`bottomNav__item ${tab === 'metronome' ? 'is-active' : ''}`} onClick={() => setTab('metronome')}>
             <span className="bottomNav__icon" aria-hidden="true">⏱</span>
             <span className="bottomNav__label">Metronome</span>
