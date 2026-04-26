@@ -1,0 +1,300 @@
+.metronomeFloatHud {
+  position: fixed;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  max-width: min(100vw - 16px, 17.5rem);
+  border-radius: 12px;
+  border: 1px solid rgba(240, 237, 230, 0.12);
+  background: color-mix(in srgb, var(--bg, #0c0c0d) 92%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  font-family: var(--mono, ui-monospace, monospace);
+  touch-action: auto;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  overflow: hidden;
+}
+
+.metronomeFloatHud--expanded {
+  max-width: min(100vw - 16px, 22rem);
+}
+
+.metronomeFloatHud--compact .metronomeFloatHud__footer {
+  display: none;
+}
+
+.metronomeFloatHud--anchorBr {
+  left: auto;
+  top: auto;
+  right: 10px;
+  bottom: calc(var(--bottom-nav-h, 0px) + 16px + env(safe-area-inset-bottom, 0px));
+}
+
+.metronomeFloatHud__mainRow {
+  display: flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+}
+
+.metronomeFloatHud__handle {
+  width: 22px;
+  flex-shrink: 0;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-right: 1px solid rgba(240, 237, 230, 0.08);
+  background: rgba(240, 237, 230, 0.04);
+  cursor: grab;
+  display: grid;
+  place-items: center;
+  color: var(--text, #c9c5bd);
+  touch-action: none;
+  align-self: stretch;
+}
+
+.metronomeFloatHud__handle:active {
+  cursor: grabbing;
+}
+
+.metronomeFloatHud__grip {
+  display: block;
+  width: 4px;
+  height: 18px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(
+    180deg,
+    currentColor 0 2px,
+    transparent 2px 4px
+  );
+  opacity: 0.45;
+}
+
+.metronomeFloatHud__step {
+  width: 36px;
+  flex-shrink: 0;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: var(--accent, #c8440a);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.12s;
+}
+
+.metronomeFloatHud__step:hover {
+  background: rgba(200, 68, 10, 0.12);
+}
+
+.metronomeFloatHud__step:active {
+  background: rgba(200, 68, 10, 0.2);
+}
+
+.metronomeFloatHud__center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px 7px;
+  min-width: 4.75rem;
+  flex: 1 1 auto;
+  border-left: 1px solid rgba(240, 237, 230, 0.06);
+  border-right: 1px solid rgba(240, 237, 230, 0.06);
+}
+
+.metronomeFloatHud__bpm {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  line-height: 1;
+}
+
+.metronomeFloatHud__bpmVal {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-h, #f0ede6);
+  letter-spacing: -0.02em;
+}
+
+.metronomeFloatHud__bpmUnit {
+  font-size: 0.5625rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text, #9c9890);
+}
+
+.metronomeFloatHud__cycle {
+  margin-top: 4px;
+  font-size: 0.5625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text, #9c9890);
+}
+
+.metronomeFloatHud__cycleNums {
+  font-weight: 700;
+  color: var(--text-h, #f0ede6);
+  letter-spacing: 0.04em;
+}
+
+.metronomeFloatHud__play {
+  flex-shrink: 0;
+  min-width: 4.25rem;
+  padding: 0 10px;
+  margin: 0;
+  border: none;
+  border-left: 1px solid rgba(240, 237, 230, 0.08);
+  background: var(--accent, #c8440a);
+  color: var(--bg, #0c0c0d);
+  font-family: inherit;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: filter 0.12s, opacity 0.12s;
+}
+
+.metronomeFloatHud__play:hover {
+  filter: brightness(1.06);
+}
+
+.metronomeFloatHud__play:active {
+  filter: brightness(0.94);
+}
+
+.metronomeFloatHud__play--on {
+  background: transparent;
+  color: var(--accent, #c8440a);
+  border-left: 1px solid rgba(200, 68, 10, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(200, 68, 10, 0.45);
+}
+
+.metronomeFloatHud__footer {
+  border-top: 1px solid rgba(240, 237, 230, 0.08);
+  padding: 8px 10px 10px;
+  background: rgba(0, 0, 0, 0.12);
+  user-select: text;
+}
+
+.metronomeFloatHud__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.metronomeFloatHud__flag {
+  font-size: 0.5625rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 6px;
+  border: 1px solid rgba(240, 237, 230, 0.12);
+  color: var(--text, #9c9890);
+}
+
+.metronomeFloatHud__flag--on {
+  border-color: rgba(200, 68, 10, 0.45);
+  color: var(--accent, #c8440a);
+  background: rgba(200, 68, 10, 0.1);
+}
+
+.metronomeFloatHud__flag--off {
+  opacity: 0.85;
+}
+
+.metronomeFloatHud__details {
+  font-size: 0.6875rem;
+  color: var(--text-h, #f0ede6);
+}
+
+.metronomeFloatHud__details summary {
+  list-style: none;
+  cursor: pointer;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  padding: 4px 0;
+  color: var(--text-h, #f0ede6);
+}
+
+.metronomeFloatHud__details summary::-webkit-details-marker {
+  display: none;
+}
+
+.metronomeFloatHud__summary::before {
+  content: '▸ ';
+  display: inline-block;
+  transition: transform 0.12s;
+  opacity: 0.6;
+}
+
+.metronomeFloatHud__details[open] .metronomeFloatHud__summary::before {
+  transform: rotate(90deg);
+}
+
+.metronomeFloatHud__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.metronomeFloatHud__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.6875rem;
+  color: var(--text-h, #f0ede6);
+  cursor: pointer;
+}
+
+.metronomeFloatHud__toggle input {
+  accent-color: var(--accent, #c8440a);
+}
+
+.metronomeFloatHud__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metronomeFloatHud__fieldLabel {
+  font-size: 0.5625rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text, #9c9890);
+}
+
+.metronomeFloatHud__select {
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid rgba(240, 237, 230, 0.14);
+  background: var(--surface, #141416);
+  color: var(--text-h, #f0ede6);
+  font-family: inherit;
+  font-size: 0.75rem;
+  padding: 0 10px;
+}
+
+.metronomeFloatHud__grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 380px) {
+  .metronomeFloatHud__grid2 {
+    grid-template-columns: 1fr;
+  }
+}

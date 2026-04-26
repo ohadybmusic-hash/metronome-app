@@ -1,18 +1,44 @@
 import './App.css'
 import Metronome from './components/Metronome.jsx'
 import { Suspense, lazy } from 'react'
-import AuthBar from './components/AuthBar.jsx'
 import AuthGate from './components/AuthGate.jsx'
+import UserAccountDrawer from './components/UserAccountDrawer.jsx'
 import { useAuth } from './context/useAuth'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useMetronome } from './hooks/useMetronome'
 import SetlistManager from './components/SetlistManager.jsx'
+import ExerciseProgress from './components/ExerciseProgress.jsx'
 import AudioSessionPrimer from './components/AudioSessionPrimer.jsx'
+import SynthAppBoundary from './components/SynthAppBoundary.jsx'
+import SynthApp from '@synth/App.jsx'
+import MetronomeFloatingHud from './components/MetronomeFloatingHud.jsx'
+import { IosPdfReaderProvider } from './context/IosPdfReaderContext.jsx'
 
 const Tuner = lazy(() => import('./components/Tuner.jsx'))
 
 function App() {
-  const { user } = useAuth()
+  const { user, authLinkError } = useAuth()
+  const openedAccountForLinkErrRef = useRef(false)
+
+  const [stageMode, setStageMode] = useState(false)
+  const [tab, setTab] = useState('metronome') // metronome | tuner | setlists | practice | synth
+  const exerciseProgressRef = useRef({
+    entries: [],
+    customExerciseNames: [],
+    sheetsByExercise: {},
+  })
+  const [exerciseRemote, setExerciseRemote] = useState(() => ({ loaded: false, data: null }))
+
+  const onExerciseProgressLoaded = useCallback((data) => {
+    setExerciseRemote({ loaded: true, data })
+  }, [])
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      setExerciseRemote({ loaded: false, data: null })
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [user?.id])
 
   // One AudioContext for metronome + tuner. iOS was silencing a separate metronome context
   // while the Tuner’s context (getUserMedia + direct-to-destination) worked.
@@ -35,14 +61,93 @@ function App() {
     return sharedAudioContextRef.current
   }, [])
 
+  const runSynthFromSongRef = useRef(/** @type {(snap: object) => void} */ (() => {}))
+  const pendingSongSynthRef = useRef(/** @type {object | null} */ (null))
   const met = useMetronome({
     initialBpm: 120,
     initialTimeSignature: '4/4',
     initialSubdivision: 'quarter',
     getAudioContext: getSharedAudioContext,
+    synthApplierRef: runSynthFromSongRef,
+    exerciseProgressRef,
+    onExerciseProgressLoaded,
   })
-  const [stageMode, setStageMode] = useState(false)
-  const [tab, setTab] = useState('metronome') // metronome | tuner | setlists | settings
+  const metRef = useRef(met)
+  metRef.current = met
+  const onPdfReaderClosed = useCallback(() => {
+    metRef.current?.syncAudioAfterInterruption?.()
+  }, [])
+  const [lastSynthSnapshot, setLastSynthSnapshot] = useState(/** @type {object | null} */ (null))
+  const [stagedSynthImport, setStagedSynthImport] = useState(/** @type {object | null} */ (null))
+  const synthRef = useRef(/** @type {{ initAudio?: () => Promise<void> | void; getPresetSnapshot?: () => object; applyPresetSnapshot?: (s: object) => void } | null} */ (null))
+
+  useLayoutEffect(() => {
+    runSynthFromSongRef.current = (snap) => {
+      if (!snap || typeof snap !== 'object') return
+      pendingSongSynthRef.current = snap
+      const api = synthRef.current
+      if (api?.applyPresetSnapshot) {
+        try {
+          void api.initAudio?.()
+          api.applyPresetSnapshot(snap)
+          pendingSongSynthRef.current = null
+        } catch {
+          /* keep pending for tab switch retry */
+        }
+      }
+    }
+  })
+
+  useLayoutEffect(() => {
+    if (tab !== 'synth') return
+    const p = pendingSongSynthRef.current
+    const api = synthRef.current
+    if (p && api?.applyPresetSnapshot) {
+      try {
+        void api.initAudio?.()
+        api.applyPresetSnapshot(p)
+        pendingSongSynthRef.current = null
+      } catch {
+        /* */
+      }
+    }
+  }, [tab])
+
+  useLayoutEffect(() => {
+    if (tab !== 'synth' || !stagedSynthImport) return
+    const api = synthRef.current
+    if (api?.applyPresetSnapshot) {
+      try {
+        void api.initAudio?.()
+        api.applyPresetSnapshot(stagedSynthImport)
+        setStagedSynthImport(null)
+      } catch {
+        /* */
+      }
+    }
+  }, [tab, stagedSynthImport])
+
+  const [accountDrawerOpen, setAccountDrawerOpen] = useState(false)
+  /** Set when user turns play on from the main Metronome tab; cleared when visiting that tab again. */
+  const [metronomeFloatHudUnlocked, setMetronomeFloatHudUnlocked] = useState(false)
+
+  useEffect(() => {
+    if (tab === 'metronome') setMetronomeFloatHudUnlocked(false)
+  }, [tab])
+
+  useEffect(() => {
+    if (!user) setMetronomeFloatHudUnlocked(false)
+  }, [user])
+
+  useEffect(() => {
+    if (!authLinkError) {
+      openedAccountForLinkErrRef.current = false
+      return
+    }
+    if (user || openedAccountForLinkErrRef.current) return
+    openedAccountForLinkErrRef.current = true
+    setAccountDrawerOpen(true)
+  }, [authLinkError, user])
 
   const ensureAudio = met.audio?.ensure
 
@@ -135,24 +240,74 @@ function App() {
   }, [showBottomNav, tab, user])
 
   return (
+    <IosPdfReaderProvider onAfterClose={onPdfReaderClosed}>
     <div
       className="min-h-[100dvh] bg-[var(--bg)] text-[var(--text-h)]"
     >
+      <div className="appUserBar">
+        <button
+          type="button"
+          className="appUserBar__btn"
+          onClick={() => setAccountDrawerOpen(true)}
+          aria-label="Account menu"
+          title="Account"
+        >
+          <span className="appUserBar__icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M12 12a3.5 3.5 0 1 0-3.5-3.5A3.5 3.5 0 0 0 12 12Z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M4.5 20.5a7.5 7.5 0 0 1 15 0"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        </button>
+      </div>
+
+      <UserAccountDrawer open={accountDrawerOpen} onClose={() => setAccountDrawerOpen(false)} />
+
+      {user ? (
+        <MetronomeFloatingHud
+          met={met}
+          active={metronomeFloatHudUnlocked && tab !== 'metronome'}
+        />
+      ) : null}
+
       <div
         className={`mx-auto w-full min-w-0 max-w-6xl overflow-x-hidden px-3 sm:px-8 flex flex-col items-stretch ${
           user
             ? tab === 'metronome'
-              ? 'py-3 sm:py-5 pb-28'
-              : 'py-6 sm:py-8 pb-28'
-            : 'py-6 sm:py-8 pb-28'
+              ? 'pt-[calc(env(safe-area-inset-top,0px)+3.5rem+0.75rem)] sm:pt-[calc(env(safe-area-inset-top,0px)+3.5rem+1.25rem)] pb-28'
+              : 'pt-[calc(env(safe-area-inset-top,0px)+3.5rem+1.5rem)] sm:pt-[calc(env(safe-area-inset-top,0px)+3.5rem+2rem)] pb-28'
+            : 'pt-[calc(env(safe-area-inset-top,0px)+3.5rem+1.5rem)] sm:pt-[calc(env(safe-area-inset-top,0px)+3.5rem+2rem)] pb-28'
         }`}
       >
         {!user ? (
-          <AuthGate />
+          <AuthGate onOpenEmailPassword={() => setAccountDrawerOpen(true)} />
         ) : (
           <Suspense fallback={<div style={{ padding: 24, textAlign: 'center' }}>Loading…</div>}>
             {tab === 'metronome' ? (
-              <Metronome met={met} onStageModeChange={setStageMode} minimal />
+              <Metronome
+                met={met}
+                onStageModeChange={setStageMode}
+                onEngageFromMainPage={() => setMetronomeFloatHudUnlocked(true)}
+                minimal
+                synthBridge={{
+                  synthRef,
+                  lastSynthSnapshot,
+                  setLastSynthSnapshot,
+                  setStagedSynthImport,
+                }}
+              />
             ) : tab === 'tuner' ? (
               <Tuner getAudioContext={getSharedAudioContext} />
             ) : tab === 'setlists' ? (
@@ -165,14 +320,28 @@ function App() {
                 </div>
                 <SetlistManager met={met} stageMode={stageMode} setStageMode={setStageMode} />
               </div>
+            ) : tab === 'practice' ? (
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 text-left sm:p-8">
+                <ExerciseProgress
+                  met={met}
+                  userId={user?.id ?? null}
+                  exerciseRemote={exerciseRemote}
+                  exerciseProgressRef={exerciseProgressRef}
+                />
+              </div>
             ) : (
-              <div className="mx-auto w-full min-w-0 max-w-md px-4 text-left">
-                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-8">
-                  <div className="text-xl font-semibold tracking-tight">Settings</div>
-                  <div className="mt-1 text-sm text-[var(--text)]">Account and global settings.</div>
-                  <div className="mt-8 w-full min-w-0">
-                    <AuthBar />
-                  </div>
+              <div
+                className="flex w-full min-w-0 min-h-[50vh] flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[#050506] shadow-[var(--shadow)]"
+                style={{ height: 'min(calc(100dvh - 7.5rem), 880px)' }}
+              >
+                <div className="min-h-0 min-w-0 flex-1">
+                  <SynthAppBoundary>
+                    <SynthApp
+                      ref={synthRef}
+                      embedded
+                      onSnapshotForMetronome={setLastSynthSnapshot}
+                    />
+                  </SynthAppBoundary>
                 </div>
               </div>
             )}
@@ -194,9 +363,13 @@ function App() {
             <span className="bottomNav__icon" aria-hidden="true">🎼</span>
             <span className="bottomNav__label">Setlists</span>
           </button>
-          <button type="button" className={`bottomNav__item ${tab === 'settings' ? 'is-active' : ''}`} onClick={() => setTab('settings')}>
-            <span className="bottomNav__icon" aria-hidden="true">👤</span>
-            <span className="bottomNav__label">Account</span>
+          <button type="button" className={`bottomNav__item ${tab === 'practice' ? 'is-active' : ''}`} onClick={() => setTab('practice')}>
+            <span className="bottomNav__icon" aria-hidden="true">📒</span>
+            <span className="bottomNav__label">Practice</span>
+          </button>
+          <button type="button" className={`bottomNav__item ${tab === 'synth' ? 'is-active' : ''}`} onClick={() => setTab('synth')}>
+            <span className="bottomNav__icon" aria-hidden="true">🥁</span>
+            <span className="bottomNav__label">Synth lab</span>
           </button>
         </nav>
       ) : null}
@@ -209,6 +382,7 @@ function App() {
         />
       ) : null}
     </div>
+    </IosPdfReaderProvider>
   )
 }
 

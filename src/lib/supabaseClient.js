@@ -11,11 +11,16 @@ if (!supabaseUrl || !supabaseAnonKey) {
   )
 }
 
+// Session persistence: default Supabase localStorage + PKCE (refresh, detectSessionInUrl).
 const authOptions = {
   flowType: 'pkce',
   autoRefreshToken: true,
   detectSessionInUrl: true,
   persistSession: true,
+  storage:
+    typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
+      ? window.localStorage
+      : undefined,
 }
 
 // Authenticated client (persists session, used for user-specific tables).

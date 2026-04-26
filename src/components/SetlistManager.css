@@ -15,6 +15,37 @@
   align-items: start;
 }
 
+.setlistMgr__row--synthio {
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.setlistMgr__row--setlists {
+  grid-template-columns: 1fr;
+}
+
+.setlistMgr__fileInput {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.setlistMgr__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text);
+  opacity: 0.9;
+}
+
+.metronome__btn--ghost {
+  background: transparent;
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
 .setlistMgr__toggle {
   justify-self: end;
   align-self: center;

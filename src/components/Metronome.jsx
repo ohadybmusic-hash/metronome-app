@@ -387,7 +387,7 @@ function RotaryDial({ value, onChange, onTap, label = 'BPM', disabled = false })
   )
 }
 
-export default function Metronome({ met, onStageModeChange, minimal = false }) {
+export default function Metronome({ met, onStageModeChange, onEngageFromMainPage, minimal = false, synthBridge }) {
   const auth = useAuth()
 
   const [stageMode, setStageMode] = useState(false)
@@ -788,12 +788,14 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
     window.setTimeout(() => {
       playFabSkipClickRef.current = false
     }, 500)
+    const willEngageFromMain = !met.isPlaying && !met.countIn?.active
     try {
       met.audio?.ensure?.()
     } catch {
       // ignore
     }
     met.toggle()
+    if (willEngageFromMain) onEngageFromMainPage?.()
   }
 
   const handlePlayFabPointerUp = (e) => {
@@ -810,12 +812,14 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
       e.stopPropagation()
       return
     }
+    const willEngageFromMain = !met.isPlaying && !met.countIn?.active
     try {
       met.audio?.ensure?.()
     } catch {
       // ignore
     }
     met.toggle()
+    if (willEngageFromMain) onEngageFromMainPage?.()
   }
 
   // Settings does not need the PLAY button’s pointerup/click de-dupe; that pattern broke opening
@@ -999,9 +1003,9 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
     }
   }, [animationStyle, met, met.audioClock, met.isPlaying, met.pulse, met.pulsesPerMeasure])
 
-  // Compute slider percentage (log scale)
+  // Main BPM bar: linear 1–400 so tick labels (1 / 200 / 400) match thumb position. Log scale remains on the rotary dial.
   const sliderPct = useMemo(() => {
-    return (Math.log(clamp(bpm, 1, 400) / 1) / Math.log(400 / 1) * 100).toFixed(1)
+    return (((clamp(bpm, 1, 400) - 1) / 399) * 100).toFixed(1)
   }, [bpm])
 
   const settingsPortalTarget =
@@ -1116,18 +1120,38 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
               min={1}
               max={400}
               step={1}
-              value={Math.round(bpm)}
+              value={Math.round(clamp(bpm, 1, 400))}
               style={{ '--pct': `${sliderPct}%` }}
               onChange={(e) => {
-                const t = Number(e.target.value) / 400
-                met.setBpm(Math.round(clamp(1 * Math.pow(400 / 1, t), 1, 400)))
+                met.setBpm(Number(e.target.value))
               }}
               aria-label="BPM"
             />
-            <div className="metronome__sliderLabels">
-              <span>1</span>
-              <span>200</span>
-              <span>400</span>
+            <div className="metronome__sliderLabels" role="group" aria-label="Tempo marks">
+              <button
+                type="button"
+                className="metronome__sliderLabelBtn"
+                aria-label="Set tempo to 1 BPM"
+                onClick={() => met.setBpm(1)}
+              >
+                1
+              </button>
+              <button
+                type="button"
+                className="metronome__sliderLabelBtn"
+                aria-label="Set tempo to 200 BPM"
+                onClick={() => met.setBpm(200)}
+              >
+                200
+              </button>
+              <button
+                type="button"
+                className="metronome__sliderLabelBtn"
+                aria-label="Set tempo to 400 BPM"
+                onClick={() => met.setBpm(400)}
+              >
+                400
+              </button>
             </div>
           </div>
         )}
@@ -1226,7 +1250,7 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
 
           {stageMode || minimal ? null : (
             <div className="metronome__row metronome__row--presets">
-              <SetlistManager met={met} stageMode={stageMode} setStageMode={setStageMode} />
+              <SetlistManager met={met} stageMode={stageMode} setStageMode={setStageMode} synthBridge={synthBridge} />
             </div>
           )}
         </div>
@@ -1343,17 +1367,27 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
                     </select>
                   </label>
 
-                  <div className="metronome__gapGrid">
-                    <label className="metronome__label metronome__label--mini">
-                      Start BPM
-                      <Stepper
-                        value={met.rhythmTrainer?.startBpm}
-                        min={1}
-                        max={400}
-                        step={1}
-                        onChange={(v) => met.rhythmTrainer?.configure?.({ startBpm: v })}
-                      />
-                    </label>
+                  <label className="metronome__label metronome__label--mini">
+                    Start BPM
+                    <Stepper
+                      value={met.rhythmTrainer?.startBpm}
+                      min={1}
+                      max={400}
+                      step={1}
+                      onChange={(v) => met.rhythmTrainer?.configure?.({ startBpm: v })}
+                    />
+                  </label>
+
+                  <label className="metronome__toggle metronome__toggle--inline">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(met.rhythmTrainer?.targetEnabled)}
+                      onChange={(e) => met.rhythmTrainer?.configure?.({ targetEnabled: e.target.checked })}
+                    />
+                    <span>Target BPM (stop when reached)</span>
+                  </label>
+
+                  {met.rhythmTrainer?.targetEnabled ? (
                     <label className="metronome__label metronome__label--mini">
                       Target BPM
                       <Stepper
@@ -1364,45 +1398,43 @@ export default function Metronome({ met, onStageModeChange, minimal = false }) {
                         onChange={(v) => met.rhythmTrainer?.configure?.({ targetBpm: v })}
                       />
                     </label>
-                  </div>
+                  ) : null}
+
+                  <label className="metronome__label">
+                    Increment (BPM per step)
+                    <Stepper
+                      value={met.rhythmTrainer?.incrementBpm ?? 1}
+                      min={0.5}
+                      max={50}
+                      step={0.5}
+                      format={(v) => `${Number(v).toFixed(1)}`}
+                      onChange={(v) => met.rhythmTrainer?.configure?.({ incrementBpm: v })}
+                    />
+                  </label>
 
                   {met.rhythmTrainer?.mode === 'seconds' ? (
                     <label className="metronome__label">
-                      Duration (seconds)
+                      Every (seconds)
                       <Stepper
-                        value={met.rhythmTrainer?.durationSeconds}
-                        min={5}
-                        max={3600}
-                        step={5}
+                        value={met.rhythmTrainer?.everySeconds ?? 5}
+                        min={1}
+                        max={600}
+                        step={1}
                         format={(v) => `${Math.round(v)}s`}
-                        onChange={(v) => met.rhythmTrainer?.configure?.({ durationSeconds: v })}
+                        onChange={(v) => met.rhythmTrainer?.configure?.({ everySeconds: v })}
                       />
                     </label>
                   ) : (
-                    <div className="metronome__gapGrid">
-                      <label className="metronome__label metronome__label--mini">
-                        Duration (bars)
-                        <Stepper
-                          value={met.rhythmTrainer?.durationBars}
-                          min={1}
-                          max={512}
-                          step={1}
-                          format={(v) => `${Math.round(v)}`}
-                          onChange={(v) => met.rhythmTrainer?.configure?.({ durationBars: v })}
-                        />
-                      </label>
-                      <label className="metronome__label metronome__label--mini">
-                        Bars per step
-                        <Stepper
-                          value={met.rhythmTrainer?.barsPerStep}
-                          min={1}
-                          max={64}
-                          step={1}
-                          format={(v) => `${Math.round(v)}`}
-                          onChange={(v) => met.rhythmTrainer?.configure?.({ barsPerStep: v })}
-                        />
-                      </label>
-                    </div>
+                    <label className="metronome__label">
+                      Every (bars)
+                      <Stepper
+                        value={met.rhythmTrainer?.everyBars ?? 1}
+                        min={1}
+                        max={64}
+                        step={1}
+                        onChange={(v) => met.rhythmTrainer?.configure?.({ everyBars: v })}
+                      />
+                    </label>
                   )}
                 </div>
 

@@ -4,6 +4,46 @@
   flex-direction: column;
 }
 
+/* Fixed top-right user button (all routes / auth state) */
+.appUserBar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 200;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 10px 8px 12px;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+.appUserBar__btn {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--border, rgba(240, 237, 230, 0.14));
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  color: var(--text-h, #f0ede6);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.appUserBar__btn:hover,
+.appUserBar__btn:focus-visible {
+  border-color: color-mix(in srgb, #39ff14 55%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, #39ff14 12%, transparent);
+  outline: none;
+}
+.appUserBar__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.95;
+}
+
 .app__nav {
   display: flex;
   gap: 10px;
@@ -37,8 +77,8 @@
   z-index: 60;
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
   background: color-mix(in srgb, var(--bg) 85%, transparent);
   backdrop-filter: blur(14px);
   border-top: 1px solid var(--border);
@@ -76,7 +116,7 @@
 
 .bottomNav__label {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text);
 }
 

@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { useAuth } from '../context/useAuth'
 import './AuthGate.css'
 
-export default function AuthGate() {
-  const { signInWithMagicLink, signInWithOAuth, signInAnonymously } = useAuth()
+export default function AuthGate({ onOpenEmailPassword } = {}) {
+  const { signInWithMagicLink, signInWithOAuth, signInAnonymously, authLinkError, dismissAuthLinkError } = useAuth()
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState(null)
@@ -56,6 +56,45 @@ export default function AuthGate() {
         <div className="authGate__subtitle">
           This app syncs your songs and setlists to Supabase. Please sign in to continue.
         </div>
+
+        {authLinkError ? (
+          <div className="authGate__linkErr" role="alert">
+            <p className="authGate__linkErrText">{authLinkError}</p>
+            <div className="authGate__linkErrActions">
+              {typeof onOpenEmailPassword === 'function' ? (
+                <button
+                  type="button"
+                  className="authGate__btn authGate__btn--primary authGate__linkErrCta"
+                  onClick={() => {
+                    onOpenEmailPassword()
+                  }}
+                  disabled={busy}
+                >
+                  Open email sign-in
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="authGate__btn authGate__linkErrDismiss"
+                onClick={dismissAuthLinkError}
+                disabled={busy}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {typeof onOpenEmailPassword === 'function' ? (
+          <button
+            type="button"
+            className="authGate__btn authGate__btn--neon"
+            onClick={onOpenEmailPassword}
+            disabled={busy}
+          >
+            Sign in with email & password
+          </button>
+        ) : null}
 
         <div className="authGate__form">
           <input

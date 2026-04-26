@@ -1,0 +1,22 @@
+/* Scoped synth lab styles (standalone synth-app/index.css must not be imported: it sets body/html) */
+.synth-embed-root {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+@keyframes beat-strobe {
+  0% {
+    box-shadow: 0 0 18px 2px var(--beat-glow, rgba(255, 255, 255, 0.4));
+    filter: brightness(1.45);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+    filter: brightness(1);
+  }
+}
+
+.synth-embed-root .beat-block-flash {
+  animation: beat-strobe 0.14s ease-out 1;
+}

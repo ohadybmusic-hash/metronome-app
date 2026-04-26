@@ -326,10 +326,38 @@
 .metronome__sliderLabels {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-size: 9px;
   color: var(--text);
   margin-top: 6px;
   letter-spacing: 1px;
+}
+.metronome__sliderLabelBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 8px 10px;
+  min-height: 2.25rem;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+.metronome__sliderLabelBtn:hover,
+.metronome__sliderLabelBtn:focus-visible {
+  color: var(--text-h);
+  background: rgba(240, 237, 230, 0.06);
+  outline: none;
+}
+.metronome__sliderLabelBtn:active {
+  color: var(--accent);
 }
 
 /* ── Rotary dial (kept for stage mode / settings) ── */

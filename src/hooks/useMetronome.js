@@ -155,16 +155,54 @@ function createWoodblockAt(ctx, when, output, { frequency, volume }) {
   osc.stop(when + attack + decay + 0.02)
 }
 
-function createVoiceAt(ctx, when, output, buffer, { volume }) {
+/**
+ * Plays a voice buffer on the Web Audio clock. If the clip is longer than the beat slot, speeds it up
+ * (capped) so the next downbeat is not muddied; if still too long, hard-stops at the slot end.
+ * @param {number} [opts.maxSlotSeconds] — time until the next count at the same metrical level (usually `secondsPerPulse`)
+ */
+function createVoiceAt(ctx, when, output, buffer, { volume, maxSlotSeconds } = {}) {
   if (!buffer) return
   const src = ctx.createBufferSource()
   const gain = ctx.createGain()
   src.buffer = buffer
+  const dur = buffer.duration
+  let wall = dur
+  const cap = maxSlotSeconds != null && maxSlotSeconds > 0.02 ? maxSlotSeconds * 0.9 : null
+  if (cap != null && dur > cap) {
+    const r = Math.min(2.5, dur / cap)
+    src.playbackRate.value = r
+    // Even at max playback rate, the clip may still span past the next beat; never exceed the slot.
+    wall = Math.min(dur / r, cap)
+  } else {
+    src.playbackRate.value = 1
+  }
   gain.gain.setValueAtTime(volume, when)
   src.connect(gain)
   gain.connect(output)
   src.start(when)
-  src.stop(when + Math.min(2.0, buffer.duration + 0.05))
+  src.stop(when + wall + 0.005)
+}
+
+/** TTS for counts: rate scales with tempo so the next `cancel()`+`speak()` does not clip mid-syllable as often. */
+function scheduleCountSpeech(ctx, when, text, { volume, pitch, slotSeconds, treatAsLongSyllable } = {}) {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return
+  const delayMs = Math.max(0, (when - ctx.currentTime) * 1000)
+  const slot = Math.max(0.08, Number(slotSeconds) || 0.25)
+  const target = treatAsLongSyllable ? 0.36 : 0.26
+  const rate = Math.min(2.2, Math.max(0.9, target / slot))
+  window.setTimeout(() => {
+    try {
+      if (ctx.state === 'closed') return
+    } catch {
+      return
+    }
+    const u = new SpeechSynthesisUtterance(text)
+    u.rate = rate
+    u.pitch = pitch ?? 1.0
+    u.volume = volume ?? 0.95
+    window.speechSynthesis.cancel()
+    window.speechSynthesis.speak(u)
+  }, delayMs)
 }
 
 function defaultBeatAccents(meter) {
@@ -261,12 +299,28 @@ export function useMetronome(options = {}) {
     scheduleAheadSeconds = 0.16,
     /** If set, use this (e.g. App-level) AudioContext so Tuner + metronome share one iOS engine. */
     getAudioContext: getAudioContextOption,
+    /**
+     * Optional ref with `.current = (synthSnapshot) => void` to apply a synth-lab JSON snapshot
+     * when the user loads a metronome song that includes `synthSnapshot`.
+     * Set from App; must be stable (same object identity).
+     */
+    synthApplierRef: synthApplierRefOption,
+    /** Ref snapshot for `user_data.data.exerciseProgress` (Practice log). */
+    exerciseProgressRef: exerciseProgressRefOption,
+    /** Called after loading `user_data` with normalized exercise payload (signed-in only). */
+    onExerciseProgressLoaded: onExerciseProgressLoadedOption,
   } = options
+
+  const synthApplierRef = synthApplierRefOption ?? { current: null }
+  const exerciseProgressRef = exerciseProgressRefOption ?? {
+    current: { entries: [], customExerciseNames: [], sheetsByExercise: {} },
+  }
 
   const [bpm, _setBpm] = useState(() => clampBpm(initialBpm))
   const [timeSignature, _setTimeSignature] = useState(initialTimeSignature)
   const [subdivision, setSubdivision] = useState(initialSubdivision)
   const [isPlaying, setIsPlaying] = useState(false)
+  const isPlayingRef = useRef(false)
   const [pulse, setPulse] = useState(0)
 
   const [sound, setSound] = useState('beep') // 'beep' | 'voiceNumbers' | 'voiceCount'
@@ -321,9 +375,14 @@ export function useMetronome(options = {}) {
   const [trainerMode, setTrainerMode] = useState('seconds') // 'seconds' | 'bars'
   const [trainerStartBpm, setTrainerStartBpm] = useState(() => clampBpm(initialBpm))
   const [trainerTargetBpm, setTrainerTargetBpm] = useState(() => clampBpm(initialBpm))
-  const [trainerDurationSeconds, setTrainerDurationSeconds] = useState(30)
-  const [trainerDurationBars, setTrainerDurationBars] = useState(16)
-  const [trainerBarsPerStep, setTrainerBarsPerStep] = useState(1) // X bars per increment
+  /** When false, tempo steps up by increment until 400 BPM (no target cap). */
+  const [trainerTargetEnabled, setTrainerTargetEnabled] = useState(false)
+  /** BPM added (or subtracted) per step. */
+  const [trainerIncrementBpm, setTrainerIncrementBpm] = useState(1)
+  /** Seconds mode: time between BPM steps. */
+  const [trainerEverySeconds, setTrainerEverySeconds] = useState(5)
+  /** Bars mode: downbeats between BPM steps. */
+  const [trainerEveryBars, setTrainerEveryBars] = useState(1)
   const [trainerElapsedTime, setTrainerElapsedTime] = useState(0)
   const [trainerBarsElapsed, setTrainerBarsElapsed] = useState(0)
 
@@ -389,12 +448,15 @@ export function useMetronome(options = {}) {
     mode: 'seconds',
     startBpm: clampBpmFloat(initialBpm),
     targetBpm: clampBpmFloat(initialBpm),
-    durationSeconds: 30,
-    durationBars: 16,
-    barsPerStep: 1,
+    targetEnabled: false,
+    incrementBpm: 1,
+    everySeconds: 5,
+    everyBars: 1,
     startedAtAudioTime: null,
-    startBpmApplied: null,
-    lastAppliedBpm: null,
+    /** Seconds mode: last completed step index (0 = at start BPM). */
+    lastAppliedStepIndex: 0,
+    /** Bars mode: bar count at last BPM change (see automator). */
+    lastAppliedAtBar: null,
     barsElapsed: 0,
   })
 
@@ -506,14 +568,18 @@ export function useMetronome(options = {}) {
     setBeatAccents(normalizeBeatAccents(m, nextAccents))
   }, [])
 
+  useEffect(() => {
+    isPlayingRef.current = isPlaying
+  }, [isPlaying])
+
   const resyncSchedulingNow = useCallback(() => {
     const ctx = ctxRef.current
-    if (!ctx || !isPlaying) return
+    if (!ctx || !isPlayingRef.current) return
 
     const now = ctx.currentTime
     nextPulseTimeRef.current = Math.max(now + 0.02, now)
     schedulerTickRef.current()
-  }, [isPlaying])
+  }, [])
 
   const applyBpm = useCallback(
     (next, { resync = true } = {}) => {
@@ -722,7 +788,7 @@ export function useMetronome(options = {}) {
 
     voiceBuffersRef.current.status = 'loading'
     const buffers = {}
-    const max = 8
+    const max = 16
     try {
       for (let i = 1; i <= max; i += 1) {
         const res = await fetch(`/voice/${i}.wav`)
@@ -834,18 +900,20 @@ export function useMetronome(options = {}) {
         if (gapMuted) continue
         const n = pulseIndex + 1
         const buf = voiceBuffersRef.current.buffers?.[n]
+        const countSlot = secondsPerPulse
         if (buf) {
-          createVoiceAt(ctx, when, output, buf, { volume: isDownbeat ? 1 : 0.88 })
-        } else if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-          const delayMs = Math.max(0, (when - ctx.currentTime) * 1000)
-          window.setTimeout(() => {
-            const u = new SpeechSynthesisUtterance(String(n))
-            u.rate = 1.0
-            u.pitch = 1.0
-            u.volume = isDownbeat ? 1.0 : 0.9
-            window.speechSynthesis.cancel()
-            window.speechSynthesis.speak(u)
-          }, delayMs)
+          createVoiceAt(ctx, when, output, buf, {
+            volume: isDownbeat ? 1 : 0.88,
+            maxSlotSeconds: countSlot,
+          })
+        } else {
+          const twoDigit = n >= 10
+          scheduleCountSpeech(ctx, when, String(n), {
+            volume: isDownbeat ? 1.0 : 0.9,
+            pitch: 1.0,
+            slotSeconds: countSlot,
+            treatAsLongSyllable: twoDigit,
+          })
         }
         continue
       }
@@ -857,18 +925,20 @@ export function useMetronome(options = {}) {
         const beatNum = pulseIndex + 1
         const sampleN = beatNum === 1 ? 1 : beatNum >= 2 && beatNum <= 4 ? beatNum : null
         const buf = sampleN ? countBuffersRef.current.buffers?.[sampleN] : null
+        const countSlot = secondsPerPulse
         if (buf) {
-          createVoiceAt(ctx, when, output, buf, { volume: beatNum === 1 ? 1 : 0.92 })
-        } else if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-          const delayMs = Math.max(0, (when - ctx.currentTime) * 1000)
-          window.setTimeout(() => {
-            const u = new SpeechSynthesisUtterance(beatNum === 1 ? 'One' : String(beatNum))
-            u.rate = 1.0
-            u.pitch = 1.1
-            u.volume = beatNum === 1 ? 1.0 : 0.9
-            window.speechSynthesis.cancel()
-            window.speechSynthesis.speak(u)
-          }, delayMs)
+          createVoiceAt(ctx, when, output, buf, {
+            volume: beatNum === 1 ? 1 : 0.92,
+            maxSlotSeconds: countSlot,
+          })
+        } else {
+          const text = beatNum === 1 ? 'One' : String(beatNum)
+          scheduleCountSpeech(ctx, when, text, {
+            volume: beatNum === 1 ? 1.0 : 0.9,
+            pitch: 1.1,
+            slotSeconds: countSlot,
+            treatAsLongSyllable: beatNum === 1 || beatNum >= 10,
+          })
         }
         continue
       }
@@ -953,6 +1023,21 @@ export function useMetronome(options = {}) {
   const persistAuthedData = useCallback(
     async (nextSongs, nextSetlists) => {
       if (!authedUserId) return
+      const epSnap = exerciseProgressRef?.current
+      const exerciseProgress =
+        epSnap && typeof epSnap === 'object'
+          ? {
+              entries: Array.isArray(epSnap.entries) ? epSnap.entries : [],
+              customExerciseNames: Array.isArray(epSnap.customExerciseNames)
+                ? epSnap.customExerciseNames
+                : [],
+              sheetsByExercise:
+                epSnap.sheetsByExercise && typeof epSnap.sheetsByExercise === 'object'
+                  ? epSnap.sheetsByExercise
+                  : {},
+            }
+          : { entries: [], customExerciseNames: [], sheetsByExercise: {} }
+
       const payload = {
         songs: nextSongs,
         setlists: nextSetlists,
@@ -971,12 +1056,11 @@ export function useMetronome(options = {}) {
               ? practiceRef.current.bpmSecondsSum / practiceRef.current.totalSeconds
               : 0,
         },
+        exerciseProgress,
         updated_at: new Date().toISOString(),
       }
 
-      // This project's schema uses:
-      // - user_id (PK)
-      // - data jsonb
+      // user_data RLS: rows are scoped to auth.uid(); only pass the signed-in user's id.
       await supabase.from('user_data').upsert(
         {
           user_id: authedUserId,
@@ -1025,7 +1109,14 @@ export function useMetronome(options = {}) {
 
       const { data, error } = await supabase.from('user_data').select('*').eq('user_id', authedUserId).maybeSingle()
       if (cancelled) return
-      if (error) return
+      if (error) {
+        onExerciseProgressLoadedOption?.({
+          entries: [],
+          customExerciseNames: [],
+          sheetsByExercise: {},
+        })
+        return
+      }
 
       userDataRowIdRef.current = data?.user_id ?? null
       const content = data?.data ?? {}
@@ -1035,6 +1126,18 @@ export function useMetronome(options = {}) {
       setActiveSetlistId(String(content?.prefs?.activeSetlistId || ''))
       setStreakCount(Math.max(0, Math.floor(Number(content?.streak?.streak_count) || 0)))
       setLastPracticeDate(content?.streak?.last_practice_date || null)
+
+      const ep = content?.exerciseProgress
+      const normalizedExercise =
+        ep && typeof ep === 'object'
+          ? {
+              entries: Array.isArray(ep.entries) ? ep.entries : [],
+              customExerciseNames: Array.isArray(ep.customExerciseNames) ? ep.customExerciseNames : [],
+              sheetsByExercise:
+                ep.sheetsByExercise && typeof ep.sheetsByExercise === 'object' ? ep.sheetsByExercise : {},
+            }
+          : { entries: [], customExerciseNames: [], sheetsByExercise: {} }
+      onExerciseProgressLoadedOption?.(normalizedExercise)
     }
 
     // Defer to avoid lint rule "set state in effect" (treated as cascading render).
@@ -1046,7 +1149,7 @@ export function useMetronome(options = {}) {
       cancelled = true
       window.clearTimeout(id)
     }
-  }, [authedUserId, readGuestData])
+  }, [authedUserId, readGuestData, onExerciseProgressLoadedOption])
 
   useEffect(() => {
     return () => {
@@ -1056,6 +1159,7 @@ export function useMetronome(options = {}) {
   }, [])
 
   const schedulerTick = useCallback(() => {
+    if (!isPlayingRef.current) return
     const ctx = ctxRef.current
     if (!ctx) return
 
@@ -1092,19 +1196,44 @@ export function useMetronome(options = {}) {
     if (tr.enabled && tr.startedAtAudioTime != null) {
       if (tr.mode === 'seconds') {
         const elapsed = Math.max(0, now - tr.startedAtAudioTime)
-        const duration = Math.max(0.001, Number(tr.durationSeconds) || 0.001)
-        const t = Math.min(1, elapsed / duration)
-        const next = tr.startBpm + (tr.targetBpm - tr.startBpm) * t
-
         setTrainerElapsedTime(elapsed)
-        if (tr.lastAppliedBpm == null || Math.abs(next - tr.lastAppliedBpm) >= 0.01) {
-          tr.lastAppliedBpm = next
-          applyBpm(next, { resync: true })
-        }
 
-        if (t >= 1) {
-          tr.enabled = false
-          setTrainerEnabled(false)
+        const everySec = Math.max(0.1, Number(tr.everySeconds) || 0.1)
+        const increment = Math.max(0.5, Number(tr.incrementBpm) || 0.5)
+        const stepsSoFar = Math.floor(elapsed / everySec)
+
+        if (!tr.targetEnabled) {
+          while (tr.lastAppliedStepIndex < stepsSoFar) {
+            tr.lastAppliedStepIndex += 1
+            const next = clampBpmFloat(bpmRef.current + increment)
+            const capped = Math.min(BPM_MAX, next)
+            applyBpm(capped, { resync: true })
+            if (capped >= BPM_MAX) {
+              tr.enabled = false
+              setTrainerEnabled(false)
+              break
+            }
+          }
+        } else {
+          const rawDir = tr.targetBpm - tr.startBpm
+          const dir = rawDir > 0 ? 1 : rawDir < 0 ? -1 : 0
+
+          if (dir === 0) {
+            tr.enabled = false
+            setTrainerEnabled(false)
+          } else {
+            while (tr.lastAppliedStepIndex < stepsSoFar) {
+              tr.lastAppliedStepIndex += 1
+              const rawNext = tr.startBpm + dir * increment * tr.lastAppliedStepIndex
+              const next = dir > 0 ? Math.min(rawNext, tr.targetBpm) : Math.max(rawNext, tr.targetBpm)
+              applyBpm(next, { resync: true })
+              if ((dir > 0 && next >= tr.targetBpm) || (dir < 0 && next <= tr.targetBpm)) {
+                tr.enabled = false
+                setTrainerEnabled(false)
+                break
+              }
+            }
+          }
         }
       } else if (tr.mode === 'bars') {
         setTrainerBarsElapsed(tr.barsElapsed)
@@ -1200,24 +1329,49 @@ export function useMetronome(options = {}) {
           tr2.barsElapsed += 1
           setTrainerBarsElapsed(tr2.barsElapsed)
 
-          const barsPerStep = Math.max(1, Math.floor(Number(tr2.barsPerStep) || 1))
-          const totalBars = Math.max(1, Math.floor(Number(tr2.durationBars) || 1))
-          const stepsTotal = Math.max(1, Math.ceil(totalBars / barsPerStep))
-          const stepSize = (tr2.targetBpm - tr2.startBpm) / stepsTotal
+          const everyBars = Math.max(1, Math.floor(Number(tr2.everyBars) || 1))
+          const increment = Math.max(0.5, Number(tr2.incrementBpm) || 0.5)
 
-          if ((tr2.barsElapsed - 1) % barsPerStep === 0) {
-            const stepIndex = Math.floor((tr2.barsElapsed - 1) / barsPerStep)
-            const next = tr2.startBpm + stepSize * stepIndex
-            if (tr2.lastAppliedBpm == null || Math.abs(next - tr2.lastAppliedBpm) >= 0.01) {
-              tr2.lastAppliedBpm = next
-              applyBpm(next, { resync: true })
+          if (!tr2.targetEnabled) {
+            if (tr2.lastAppliedAtBar == null) {
+              tr2.lastAppliedAtBar = tr2.barsElapsed
+              applyBpm(tr2.startBpm, { resync: true })
+            } else {
+              const barsSince = tr2.barsElapsed - tr2.lastAppliedAtBar
+              if (barsSince >= everyBars) {
+                const next = clampBpmFloat(bpmRef.current + increment)
+                const capped = Math.min(BPM_MAX, next)
+                applyBpm(capped, { resync: true })
+                tr2.lastAppliedAtBar = tr2.barsElapsed
+                if (capped >= BPM_MAX) {
+                  tr2.enabled = false
+                  setTrainerEnabled(false)
+                }
+              }
             }
-          }
+          } else {
+            const rawDir = tr2.targetBpm - tr2.startBpm
+            const dir = rawDir > 0 ? 1 : rawDir < 0 ? -1 : 0
 
-          if (tr2.barsElapsed >= totalBars) {
-            tr2.enabled = false
-            setTrainerEnabled(false)
-            applyBpm(tr2.targetBpm, { resync: true })
+            if (dir === 0) {
+              tr2.enabled = false
+              setTrainerEnabled(false)
+            } else if (tr2.lastAppliedAtBar == null) {
+              tr2.lastAppliedAtBar = tr2.barsElapsed
+              applyBpm(tr2.startBpm, { resync: true })
+            } else {
+              const barsSince = tr2.barsElapsed - tr2.lastAppliedAtBar
+              if (barsSince >= everyBars) {
+                const next = clampBpmFloat(bpmRef.current + dir * increment)
+                const done = dir > 0 ? next >= tr2.targetBpm : next <= tr2.targetBpm
+                applyBpm(done ? tr2.targetBpm : next, { resync: true })
+                tr2.lastAppliedAtBar = tr2.barsElapsed
+                if (done) {
+                  tr2.enabled = false
+                  setTrainerEnabled(false)
+                }
+              }
+            }
           }
         }
       }
@@ -1257,7 +1411,7 @@ export function useMetronome(options = {}) {
   }, [schedulerTick])
 
   const start = useCallback(() => {
-    if (isPlaying) return
+    if (isPlayingRef.current) return
     // Unlock + prime in the same gesture, then start transport only once the context is actually
     // running. Fire-and-forget ctx.resume() is often still "suspended" for the first schedule;
     // the tuner path awaited resume() so it appeared to "fix" the metronome.
@@ -1289,6 +1443,7 @@ export function useMetronome(options = {}) {
       practiceSessionRef.current.bpmAtStart = Math.round(bpmRef.current)
 
       timerIdRef.current = window.setInterval(schedulerTick, lookaheadMs)
+      isPlayingRef.current = true
       setIsPlaying(true)
     }
 
@@ -1343,8 +1498,8 @@ export function useMetronome(options = {}) {
       const tr = trainerRef.current
       if (tr.enabled) {
         tr.startedAtAudioTime = ctx.currentTime
-        tr.startBpmApplied = tr.startBpm
-        tr.lastAppliedBpm = null
+        tr.lastAppliedStepIndex = 0
+        tr.lastAppliedAtBar = null
         tr.barsElapsed = 0
         setTrainerElapsedTime(0)
         setTrainerBarsElapsed(0)
@@ -1364,6 +1519,7 @@ export function useMetronome(options = {}) {
       // gesture chain and also delay the first beep. Voice mode fills buffers in the background
       // (schedulePulse falls back to speechSynthesis until ready).
       timerIdRef.current = window.setInterval(schedulerTick, lookaheadMs)
+      isPlayingRef.current = true
       setIsPlaying(true)
 
       if (soundRef.current === 'voiceNumbers' || soundRef.current === 'voiceCount') {
@@ -1414,7 +1570,6 @@ export function useMetronome(options = {}) {
     applyBpm,
     ensureUserGestureAudio,
     ensureCountSamples,
-    isPlaying,
     loadVoiceSamples,
     lookaheadMs,
     resyncSchedulingNow,
@@ -1437,6 +1592,13 @@ export function useMetronome(options = {}) {
     if (timerIdRef.current) {
       window.clearInterval(timerIdRef.current)
       timerIdRef.current = null
+    }
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel()
+      } catch {
+        // ignore
+      }
     }
 
     // Practice Log: record a session on stop (authed only).
@@ -1475,6 +1637,7 @@ export function useMetronome(options = {}) {
     practiceSessionRef.current.startedAtAudioTime = null
     practiceSessionRef.current.bpmAtStart = null
 
+    isPlayingRef.current = false
     setIsPlaying(false)
     setPulse(0)
     pulseIndexRef.current = 0
@@ -1536,10 +1699,14 @@ export function useMetronome(options = {}) {
     return () => window.clearTimeout(id)
   }, [authedUserId, lastPracticeDate, practiceTotalSeconds, schedulePersist, setlists, songs, streakCount])
 
+  const scheduleUserDataSync = useCallback(() => {
+    schedulePersist(songs, setlists)
+  }, [schedulePersist, songs, setlists])
+
   const toggle = useCallback(() => {
-    if (isPlaying || countInActive) stop()
+    if (isPlayingRef.current || countInRef.current.active) stop()
     else start()
-  }, [countInActive, isPlaying, start, stop])
+  }, [start, stop])
 
   // Wake Lock: keep screen awake while playing (best effort).
   useEffect(() => {
@@ -1590,10 +1757,62 @@ export function useMetronome(options = {}) {
     }
   }, [isPlaying])
 
+  const syncAudioAfterInterruption = useCallback(() => {
+    ensureUserGestureAudio()
+    const ctx = ctxRef.current
+    const kickResync = () => {
+      if (isPlayingRef.current) resyncSchedulingNow()
+    }
+    if (!ctx) {
+      kickResync()
+      return
+    }
+    const { state } = ctx
+    if (state === 'suspended' || state === 'interrupted') {
+      const p = ctx.resume?.()
+      if (p && typeof p.then === 'function') {
+        void p.then(() => {
+          requestAnimationFrame(() => {
+            ensureUserGestureAudio()
+            kickResync()
+          })
+        })
+      } else {
+        requestAnimationFrame(kickResync)
+      }
+    } else {
+      requestAnimationFrame(kickResync)
+    }
+  }, [ensureUserGestureAudio, resyncSchedulingNow])
+
+  useEffect(() => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return
+
+    const onVis = () => {
+      if (document.visibilityState === 'visible') syncAudioAfterInterruption()
+    }
+    const onPageShow = (e) => {
+      if (e.persisted) syncAudioAfterInterruption()
+    }
+    const onFocus = () => {
+      if (document.visibilityState === 'visible') syncAudioAfterInterruption()
+    }
+
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('pageshow', onPageShow)
+    window.addEventListener('focus', onFocus)
+    return () => {
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('pageshow', onPageShow)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [syncAudioAfterInterruption])
+
   useEffect(() => {
     return () => {
       if (timerIdRef.current) window.clearInterval(timerIdRef.current)
       timerIdRef.current = null
+      isPlayingRef.current = false
       setIsPlaying(false)
 
       const ctx = ctxRef.current
@@ -1654,25 +1873,33 @@ export function useMetronome(options = {}) {
   )
 
   const configureTrainer = useCallback((config = {}) => {
-    const next = {
-      enabled: config.enabled ?? trainerRef.current.enabled,
-      mode: config.mode ?? trainerRef.current.mode,
-      startBpm:
-        config.startBpm != null ? clampBpmFloat(config.startBpm) : trainerRef.current.startBpm,
-      targetBpm:
-        config.targetBpm != null ? clampBpmFloat(config.targetBpm) : trainerRef.current.targetBpm,
-      durationSeconds:
-        config.durationSeconds != null
-          ? Math.max(0.001, Number(config.durationSeconds) || 0.001)
-          : trainerRef.current.durationSeconds,
-      durationBars:
-        config.durationBars != null
-          ? Math.max(1, Math.floor(Number(config.durationBars) || 1))
-          : trainerRef.current.durationBars,
-      barsPerStep:
-        config.barsPerStep != null
+    const cur = trainerRef.current
+    const nextEveryBars =
+      config.everyBars != null
+        ? Math.max(1, Math.floor(Number(config.everyBars) || 1))
+        : config.barsPerStep != null
           ? Math.max(1, Math.floor(Number(config.barsPerStep) || 1))
-          : trainerRef.current.barsPerStep,
+          : cur.everyBars
+    const nextEverySeconds =
+      config.everySeconds != null
+        ? Math.max(0.1, Number(config.everySeconds) || 0.1)
+        : config.durationSeconds != null
+          ? Math.max(0.1, Number(config.durationSeconds) || 0.1)
+          : cur.everySeconds
+
+    const next = {
+      enabled: config.enabled ?? cur.enabled,
+      mode: config.mode ?? cur.mode,
+      startBpm: config.startBpm != null ? clampBpmFloat(config.startBpm) : cur.startBpm,
+      targetBpm: config.targetBpm != null ? clampBpmFloat(config.targetBpm) : cur.targetBpm,
+      targetEnabled:
+        config.targetEnabled != null ? Boolean(config.targetEnabled) : Boolean(cur.targetEnabled ?? false),
+      incrementBpm:
+        config.incrementBpm != null
+          ? Math.max(0.5, Number(config.incrementBpm) || 0.5)
+          : cur.incrementBpm,
+      everyBars: nextEveryBars,
+      everySeconds: nextEverySeconds,
     }
 
     trainerRef.current = {
@@ -1685,9 +1912,10 @@ export function useMetronome(options = {}) {
     setTrainerMode(next.mode)
     setTrainerStartBpm(clampBpm(next.startBpm))
     setTrainerTargetBpm(clampBpm(next.targetBpm))
-    setTrainerDurationSeconds(next.durationSeconds)
-    setTrainerDurationBars(next.durationBars)
-    setTrainerBarsPerStep(next.barsPerStep)
+    setTrainerTargetEnabled(Boolean(next.targetEnabled))
+    setTrainerIncrementBpm(next.incrementBpm)
+    setTrainerEveryBars(next.everyBars)
+    setTrainerEverySeconds(next.everySeconds)
   }, [])
 
   const startTrainer = useCallback(
@@ -1698,15 +1926,15 @@ export function useMetronome(options = {}) {
       tr.mode = config.mode ?? tr.mode
       tr.startBpm = config.startBpm != null ? clampBpmFloat(config.startBpm) : tr.startBpm
       tr.targetBpm = config.targetBpm != null ? clampBpmFloat(config.targetBpm) : tr.targetBpm
-      if (config.durationSeconds != null)
-        tr.durationSeconds = Math.max(0.001, Number(config.durationSeconds) || 0.001)
-      if (config.durationBars != null)
-        tr.durationBars = Math.max(1, Math.floor(Number(config.durationBars) || 1))
-      if (config.barsPerStep != null)
-        tr.barsPerStep = Math.max(1, Math.floor(Number(config.barsPerStep) || 1))
+      if (config.targetEnabled != null) tr.targetEnabled = Boolean(config.targetEnabled)
+      if (config.incrementBpm != null) tr.incrementBpm = Math.max(0.5, Number(config.incrementBpm) || 0.5)
+      if (config.everySeconds != null) tr.everySeconds = Math.max(0.1, Number(config.everySeconds) || 0.1)
+      if (config.everyBars != null) tr.everyBars = Math.max(1, Math.floor(Number(config.everyBars) || 1))
+      if (config.barsPerStep != null) tr.everyBars = Math.max(1, Math.floor(Number(config.barsPerStep) || 1))
 
       tr.startedAtAudioTime = ctxRef.current ? ctxRef.current.currentTime : null
-      tr.lastAppliedBpm = null
+      tr.lastAppliedStepIndex = 0
+      tr.lastAppliedAtBar = null
       tr.barsElapsed = 0
       setTrainerElapsedTime(0)
       setTrainerBarsElapsed(0)
@@ -1739,6 +1967,7 @@ export function useMetronome(options = {}) {
     start,
     stop,
     toggle,
+    syncAudioAfterInterruption,
     pulse,
     pulsesPerMeasure: meter.numerator,
     sound,
@@ -1837,7 +2066,7 @@ export function useMetronome(options = {}) {
       setActiveSetlistId,
       guestSyncPrompt,
       clearGuestSyncPrompt: () => setGuestSyncPrompt(null),
-      saveSong: ({ name, bpm, timeSignature, subdivision }) => {
+      saveSong: ({ name, bpm, timeSignature, subdivision, synthSnapshot }) => {
         if (!authedUserId || isAnonymous) setGuestSyncPrompt('Create a permanent account to sync your data across devices.')
         const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`
         const meter = getMeter(timeSignature)
@@ -1848,6 +2077,7 @@ export function useMetronome(options = {}) {
           timeSignature,
           subdivision,
           beatAccents: normalizeBeatAccents(meter, beatAccentsRef.current),
+          ...(synthSnapshot && typeof synthSnapshot === 'object' ? { synthSnapshot } : {}),
         }
         setSongs((prev) => {
           const next = [song, ...prev]
@@ -1857,6 +2087,17 @@ export function useMetronome(options = {}) {
         setActiveSongId(id)
         return id
       },
+      updateSong: (songId, patch) => {
+        if (!songId || !patch || typeof patch !== 'object') return
+        if (!authedUserId || isAnonymous) {
+          setGuestSyncPrompt('Create a permanent account to sync your data across devices.')
+        }
+        setSongs((prev) => {
+          const next = prev.map((s) => (s.id === songId ? { ...s, ...patch } : s))
+          schedulePersist(next, setlists)
+          return next
+        })
+      },
       applySong: (song) => {
         if (!song) return
         setActiveSongId(song.id || '')
@@ -1865,6 +2106,13 @@ export function useMetronome(options = {}) {
         setBpm(song.bpm)
         const meter = getMeter(song.timeSignature)
         setBeatAccents(normalizeBeatAccents(meter, song.beatAccents))
+        if (song.synthSnapshot && typeof synthApplierRef.current === 'function') {
+          try {
+            synthApplierRef.current(song.synthSnapshot)
+          } catch {
+            /* ignore invalid synth snapshot */
+          }
+        }
       },
       createSetlist: ({ name }) => {
         if (!authedUserId || isAnonymous) setGuestSyncPrompt('Create a permanent account to sync your data across devices.')
@@ -1907,15 +2155,20 @@ export function useMetronome(options = {}) {
       mode: trainerMode,
       startBpm: trainerStartBpm,
       targetBpm: trainerTargetBpm,
-      durationSeconds: trainerDurationSeconds,
-      durationBars: trainerDurationBars,
-      barsPerStep: trainerBarsPerStep,
+      targetEnabled: trainerTargetEnabled,
+      incrementBpm: trainerIncrementBpm,
+      everySeconds: trainerEverySeconds,
+      everyBars: trainerEveryBars,
+      /** @deprecated Use everyBars */
+      barsPerStep: trainerEveryBars,
       elapsedTime: trainerElapsedTime,
       barsElapsed: trainerBarsElapsed,
       configure: configureTrainer,
       start: startTrainer,
       stop: stopTrainer,
     },
+    /** Queue a throttled persist of songs/setlists + practice + exercise log to user_data. */
+    scheduleUserDataSync,
   }
 }
 

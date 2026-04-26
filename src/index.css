@@ -100,6 +100,31 @@ body {
   box-sizing: border-box;
 }
 
+#modal-root > #metronome-float-portal {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  box-sizing: border-box;
+  isolation: isolate;
+}
+/* In-app PDF reader (z 20) — float must stack above it */
+#modal-root[data-pdf-reader] > #metronome-float-portal {
+  z-index: 30;
+}
+#modal-root > #metronome-float-portal > * {
+  pointer-events: auto;
+}
+
+.exercise-pdf-embed {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  contain: layout;
+  box-sizing: border-box;
+  padding-right: min(20rem, 45vw);
+}
+
 /* Fixed layer for portaled UI (settings drawer) — not clipped by #root; inherits global tokens */
 #modal-root {
   position: fixed;
@@ -156,4 +181,45 @@ code {
   line-height: 135%;
   padding: 4px 8px;
   background: var(--code-bg);
+}
+
+/* synth-app (embedded tab): keyframes + utilities not covered by component classes */
+@keyframes synth-beat-strobe {
+  0% {
+    box-shadow: 0 0 18px 2px var(--beat-glow, rgba(255, 255, 255, 0.4));
+    filter: brightness(1.45);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+    filter: brightness(1);
+  }
+}
+
+.beat-block-flash {
+  animation: synth-beat-strobe 0.14s ease-out 1;
+}
+
+@keyframes drum-illu-shine {
+  0% {
+    opacity: 0.9;
+    filter: brightness(1.55) saturate(1.1);
+    transform: scale(0.92) translateY(1px);
+  }
+  35% {
+    opacity: 0.5;
+    filter: brightness(1.4);
+    transform: scale(1.14) translateY(-3px);
+  }
+  100% {
+    opacity: 0;
+    filter: brightness(1);
+    transform: scale(1.08) translateY(0);
+  }
+}
+
+.drum-illu-shine {
+  animation: drum-illu-shine 0.48s ease-out forwards;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  border-radius: 9999px;
 }

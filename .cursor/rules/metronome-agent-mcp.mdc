@@ -20,9 +20,18 @@ User rules, skills, and system prompts take priority. **Read each MCP tool’s J
 ## Project
 
 - **Stack:** Vite + React; **Supabase** when `VITE_SUPABASE_*` is set.
-- **Deploy:** Vercel; Git push to `master` and/or `npx vercel deploy --prod` from this repo.
 - **Audio:** Shared `AudioContext` from `App` — **never** `close()` it in `useMetronome` unmount; **recreate** in `getSharedAudioContext` if `state === 'closed'`.
+- **Layout vs. PLAY / sound:** The play bar uses `z-index: 40`, bottom nav `z-index: 60` — the nav **wins** any overlapping pixels. If `--bottom-nav-h` (measured in `App.jsx` from `.bottomNav`) is too small, taps hit the nav instead of **PLAY** → no `toggle` / no sound. After edits to `App.jsx` (nav measure), `Metronome.jsx` (PLAY / `handlePlayFab*`), or `Metronome.css` (sticky), run **`npm run build`** and in a **browser** confirm **PLAY** starts audio (iOS: keep `onPointerUp` + `onTouchStart` ensure path).
 - **Design:** v3 metronome — orange `#c8440a`, Space Mono, see `Metronome.css` / `DESIGN_RULES.md`.
+
+## Vercel — deploy after every code change
+
+- **When:** After any edit to this app’s code or deploy-affecting config, **do not end the work** until you have attempted **build + production deploy** (same session / turn when possible).
+- **Commands (from `metronome-app/`):** `npm run build` — if it passes, `npx vercel deploy --prod` (or `vercel --prod` if the environment uses it). The directory must be the Vite app root; the project should already be linked to Vercel.
+- **If `npm run build` fails:** fix the errors first; do not deploy a broken build.
+- **If deploy cannot run** (no network, Vercel CLI not authenticated, user must link the project): say so clearly and give the exact commands for the user to run.
+- **Override (preview / localhost):** If the user is using **Cursor’s preview of localhost** or says they want changes **local only**, see root **`.cursor/rules/preview-ask-before-prod-deploy.mdc`**: run build, but **ask before** `npx vercel deploy --prod`.
+- **Override:** If the user explicitly says not to deploy for this request, skip deploy and state that.
 
 ## Connected MCP servers
 

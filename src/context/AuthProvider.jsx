@@ -1,4 +1,6 @@
-import { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import RecoveryPasswordOverlay from '../components/RecoveryPasswordOverlay.jsx'
+import { friendlyAuthLinkError, parseAuthUrlError, stripAuthErrorFromUrl } from '../lib/authUrlErrors'
 import { supabase } from '../lib/supabaseClient'
 
 const AuthContext = createContext(null)
@@ -31,11 +33,46 @@ function authAppOrigin() {
   return window.location.origin
 }
 
+/** Used for sign-up, recovery, and magic-link redirects. Must be listed under Auth → URL Configuration → Redirect URLs. */
+function authEmailRedirectTo() {
+  return `${window.location.origin}/`
+}
+
+/** Hash/query before getSession() consumes the recovery link (implicit-style links). */
+function urlLooksLikePasswordRecovery() {
+  if (typeof window === 'undefined') return false
+  try {
+    const search = window.location.search || ''
+    const hash = (window.location.hash || '').replace(/^#/, '')
+    if (search.includes('type=recovery')) return true
+    const hp = new URLSearchParams(hash)
+    if (hp.get('type') === 'recovery') return true
+    const sp = new URLSearchParams(search)
+    if (sp.get('type') === 'recovery') return true
+  } catch {
+    // ignore
+  }
+  return false
+}
+
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [passwordRecoveryPending, setPasswordRecoveryPending] = useState(false)
+  const [authLinkError, setAuthLinkError] = useState(null)
+
+  useLayoutEffect(() => {
+    const parsed = parseAuthUrlError()
+    if (!parsed) return
+    setAuthLinkError(friendlyAuthLinkError(parsed))
+    stripAuthErrorFromUrl()
+  }, [])
+
+  const dismissAuthLinkError = useCallback(() => {
+    setAuthLinkError(null)
+  }, [])
 
   // Serialize auth/bootstrap operations to avoid storage lock contention.
   const opRef = useRef(Promise.resolve())
@@ -89,6 +126,7 @@ export function AuthProvider({ children }) {
       await enqueue(async () => {
         if (cancelled) return
         setLoading(true)
+        const recoveryUrlHint = urlLooksLikePasswordRecovery()
         try {
           let res
           try {
@@ -111,6 +149,9 @@ export function AuthProvider({ children }) {
             setSession(nextSession)
             setUser(nextUser)
           }
+          if (!cancelled && recoveryUrlHint && nextUser) {
+            setPasswordRecoveryPending(true)
+          }
           if (!cancelled) refreshProfile(nextUser)
         } catch {
           // Swallow init errors; the UI should still be usable (AuthGate can retry).
@@ -120,7 +161,10 @@ export function AuthProvider({ children }) {
       })
     }
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setPasswordRecoveryPending(true)
+      }
       await enqueue(async () => {
         const nextUser = nextSession?.user ?? null
         setSession(nextSession ?? null)
@@ -143,7 +187,27 @@ export function AuthProvider({ children }) {
   }, [enqueue, refreshProfile])
 
   const signUp = useCallback(async ({ email, password }) => {
-    const { data, error } = await supabase.auth.signUp({ email, password })
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        // Required for confirmation / recovery links; must match dashboard Redirect URLs (e.g. https://your.app/**)
+        emailRedirectTo: authEmailRedirectTo(),
+      },
+    })
+    if (error) throw error
+    return data
+  }, [])
+
+  /** For users who completed sign-up but did not receive the confirmation email. */
+  const resendSignUp = useCallback(async ({ email }) => {
+    const { data, error } = await supabase.auth.resend({
+      type: 'signup',
+      email: String(email || '').trim(),
+      options: {
+        emailRedirectTo: authEmailRedirectTo(),
+      },
+    })
     if (error) throw error
     return data
   }, [])
@@ -154,11 +218,22 @@ export function AuthProvider({ children }) {
     return data
   }, [])
 
+  const resetPasswordForEmail = useCallback(async ({ email }) => {
+    const { data, error } = await supabase.auth.resetPasswordForEmail(
+      String(email || '').trim(),
+      {
+        redirectTo: authEmailRedirectTo(),
+      },
+    )
+    if (error) throw error
+    return data
+  }, [])
+
   const signInWithMagicLink = useCallback(async ({ email }) => {
     const { data, error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: authAppOrigin(),
+        emailRedirectTo: authEmailRedirectTo(),
       },
     })
     if (error) throw error
@@ -202,6 +277,10 @@ export function AuthProvider({ children }) {
     if (error) throw error
   }, [])
 
+  const ackPasswordRecoveryComplete = useCallback(() => {
+    setPasswordRecoveryPending(false)
+  }, [])
+
   const isAdmin = Boolean(profile?.is_admin)
 
   const value = useMemo(
@@ -211,8 +290,14 @@ export function AuthProvider({ children }) {
       profile,
       isAdmin,
       loading,
+      passwordRecoveryPending,
+      ackPasswordRecoveryComplete,
+      authLinkError,
+      dismissAuthLinkError,
       signUp,
+      resendSignUp,
       signIn,
+      resetPasswordForEmail,
       signInWithMagicLink,
       signInAnonymously,
       signInWithOAuth,
@@ -221,12 +306,18 @@ export function AuthProvider({ children }) {
       refreshProfile: () => refreshProfile(user),
     }),
     [
+      ackPasswordRecoveryComplete,
+      authLinkError,
+      dismissAuthLinkError,
       isAdmin,
       loading,
+      passwordRecoveryPending,
       profile,
       refreshProfile,
       session,
+      resendSignUp,
       signIn,
+      resetPasswordForEmail,
       signInWithMagicLink,
       signInAnonymously,
       signInWithOAuth,
@@ -237,7 +328,12 @@ export function AuthProvider({ children }) {
     ],
   )
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      <RecoveryPasswordOverlay />
+    </AuthContext.Provider>
+  )
 }
 
 export { AuthContext }

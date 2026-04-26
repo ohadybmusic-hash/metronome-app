@@ -1,0 +1,141 @@
+/* Collapsible sheet library folders */
+.practicePdfLib {
+  margin-bottom: 1.5rem;
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  background: var(--surface-2, var(--surface));
+  overflow: hidden;
+}
+
+.practicePdfLib > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-h);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.practicePdfLib > summary::-webkit-details-marker {
+  display: none;
+}
+
+.practicePdfLib > summary:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.practicePdfLib__chev {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  color: var(--text);
+  opacity: 0.75;
+  transition: transform 0.15s var(--ease-out, ease-out);
+}
+
+.practicePdfLib[open] > summary .practicePdfLib__chev {
+  transform: rotate(180deg);
+}
+
+.practicePdfLib__body {
+  border-top: 1px solid var(--border);
+  padding: 1rem;
+}
+
+/* Top-level course / bundle folder (siblings: add more in practicePdfCategories.js) */
+.practicePdfLib__mainFolder {
+  margin-bottom: 0.5rem;
+  border-radius: 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  background: color-mix(in srgb, var(--surface) 92%, var(--accent) 8%);
+  overflow: hidden;
+}
+
+.practicePdfLib__mainFolder:last-child {
+  margin-bottom: 0;
+}
+
+.practicePdfLib__mainFolder > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--text-h);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.practicePdfLib__mainFolder > summary::-webkit-details-marker {
+  display: none;
+}
+
+.practicePdfLib__mainFolder > summary:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.practicePdfLib__mainFolder[open] > summary .practicePdfLib__chev {
+  transform: rotate(180deg);
+}
+
+.practicePdfLib__mainFolderBody {
+  padding: 0.65rem 0.65rem 0.85rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.practicePdfLib__folder {
+  margin-bottom: 0.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.practicePdfLib__folder:last-child {
+  margin-bottom: 0;
+}
+
+.practicePdfLib__folder > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.practicePdfLib__folder > summary::-webkit-details-marker {
+  display: none;
+}
+
+.practicePdfLib__folder > summary:hover {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+.practicePdfLib__folder[open] > summary .practicePdfLib__chev {
+  transform: rotate(180deg);
+}
+
+.practicePdfLib__folderBody {
+  padding: 0.65rem 0.85rem 0.85rem;
+  border-top: 1px solid var(--border);
+}

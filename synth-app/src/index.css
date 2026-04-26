@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+@theme {
+  --color-neon: #39ff14;
+  --color-surface: #0a0a0c;
+  --color-elevated: #121218;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--color-surface);
+  color: #e4e4e7;
+  font-family: system-ui, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+@keyframes beat-strobe {
+  0% {
+    box-shadow: 0 0 18px 2px var(--beat-glow, rgba(255, 255, 255, 0.4));
+    filter: brightness(1.45);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+    filter: brightness(1);
+  }
+}
+
+.beat-block-flash {
+  animation: beat-strobe 0.14s ease-out 1;
+}
+
+/* Drum kit illustration: hit feedback on the matching zone */
+@keyframes drum-illu-shine {
+  0% {
+    opacity: 0.9;
+    filter: brightness(1.55) saturate(1.1);
+    transform: scale(0.92) translateY(1px);
+  }
+  35% {
+    opacity: 0.5;
+    filter: brightness(1.4);
+    transform: scale(1.14) translateY(-3px);
+  }
+  100% {
+    opacity: 0;
+    filter: brightness(1);
+    transform: scale(1.08) translateY(0);
+  }
+}
+
+.drum-illu-shine {
+  animation: drum-illu-shine 0.48s ease-out forwards;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  border-radius: 9999px;
+}
