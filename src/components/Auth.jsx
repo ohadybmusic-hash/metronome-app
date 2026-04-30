@@ -1,22 +1,11 @@
 import { useState } from 'react'
+import { withTimeout } from '../lib/async.js'
 import { useAuth } from '../context/useAuth'
 import './Auth.css'
 
 const NEON = '#39ff14'
 
 const REQUEST_MS = 28000
-
-function withTimeout(promise, ms, message) {
-  let t
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => {
-      t = window.setTimeout(() => reject(new Error(message)), ms)
-    }),
-  ]).finally(() => {
-    if (t) window.clearTimeout(t)
-  })
-}
 
 /**
  * Email + password sign-in / sign-up. Neon on black; uses Supabase password auth.

@@ -4,6 +4,16 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim()
 const supabaseAnonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim()
 
+/** @returns {string | null} Must match the default in @supabase/supabase-js (sb-<ref>-auth-token). */
+export function getSupabaseAuthStorageKey() {
+  if (!supabaseUrl) return null
+  try {
+    return `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`
+  } catch {
+    return null
+  }
+}
+
 if (!supabaseUrl || !supabaseAnonKey) {
   // Fail fast in dev if env vars are missing.
   throw new Error(

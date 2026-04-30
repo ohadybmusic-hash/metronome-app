@@ -30,6 +30,9 @@ export const DEFAULT_EXERCISE_NAMES = [
   'Cross String Picking',
 ]
 
+/** Default section for custom exercises added from the log form (not the manage panel). */
+export const IMPLICIT_CUSTOM_LIBRARY_SECTION = 'My exercises'
+
 export const EXERCISE_PROGRESS_STORAGE_KEY = 'metronome-app:exercise-progress:v1'
 
 /** Guest: global key. Signed-in: per-user so device data does not leak across accounts. */

@@ -1,109 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './Tuner.css'
+import { clamp } from '../lib/clamp.js'
+import {
+  centsBetween,
+  freqToNoteName,
+  midiToFreq,
+  noteNameToMidi,
+  parabolicInterpolation,
+} from '../lib/tuner/pitch.js'
+import { TUNING_LIBRARY } from '../lib/tuner/tuningLibrary.js'
+import { buildTuningTargets } from '../lib/tuner/tuningTargets.js'
 import Stepper from './Stepper.jsx'
 import { useScreenWakeLock } from '../hooks/useScreenWakeLock.js'
-
-function clamp(n, min, max) {
-  return Math.min(max, Math.max(min, n))
-}
-
-function parabolicInterpolation(m1, m2, m3) {
-  // Returns fractional bin offset from the middle bin (m2) for a peak.
-  const denom = m1 - 2 * m2 + m3
-  if (denom === 0) return 0
-  return 0.5 * (m1 - m3) / denom
-}
-
-function midiToNoteName(midi) {
-  const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-  const name = names[((midi % 12) + 12) % 12]
-  const octave = Math.floor(midi / 12) - 1
-  return `${name}${octave}`
-}
-
-function noteNameToMidi(note) {
-  const m = String(note).trim().match(/^([A-G])(#?)(-?\d+)$/)
-  if (!m) return null
-  const letter = m[1]
-  const sharp = m[2] === '#'
-  const octave = Number(m[3])
-  const base = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[letter]
-  const semitone = base + (sharp ? 1 : 0)
-  return (octave + 1) * 12 + semitone
-}
-
-function midiToFreq(midi, a4 = 440) {
-  return a4 * Math.pow(2, (midi - 69) / 12)
-}
-
-function centsBetween(freq, targetFreq) {
-  return 1200 * Math.log2(freq / targetFreq)
-}
-
-function freqToNoteName(freq, a4 = 440) {
-  if (!Number.isFinite(freq) || freq <= 0) return null
-  const semitonesFromA4 = 12 * Math.log2(freq / a4)
-  const midi = Math.round(69 + semitonesFromA4)
-  const targetFreq = midiToFreq(midi, a4)
-  const cents = centsBetween(freq, targetFreq)
-  return { name: midiToNoteName(midi), targetFreq, cents, midi }
-}
-
-const TUNING_LIBRARY = [
-  {
-    id: 'chromatic',
-    label: 'Chromatic (any note)',
-    category: 'Chromatic',
-    strings: [],
-  },
-
-  // Guitar
-  {
-    id: 'gtr-standard',
-    label: 'Standard (E A D G B E)',
-    category: 'Guitar',
-    strings: ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'],
-  },
-  {
-    id: 'gtr-half-down',
-    label: 'Half-step down (Eb Ab Db Gb Bb Eb)',
-    category: 'Guitar',
-    strings: ['D#2', 'G#2', 'C#3', 'F#3', 'A#3', 'D#4'],
-  },
-  {
-    id: 'gtr-whole-down',
-    label: 'Whole-step down (D G C F A D)',
-    category: 'Guitar',
-    strings: ['D2', 'G2', 'C3', 'F3', 'A3', 'D4'],
-  },
-  { id: 'gtr-drop-d', label: 'Drop D (D A D G B E)', category: 'Guitar', strings: ['D2', 'A2', 'D3', 'G3', 'B3', 'E4'] },
-  { id: 'gtr-drop-c', label: 'Drop C (C G C F A D)', category: 'Guitar', strings: ['C2', 'G2', 'C3', 'F3', 'A3', 'D4'] },
-  { id: 'gtr-dadgad', label: 'DADGAD (D A D G A D)', category: 'Guitar', strings: ['D2', 'A2', 'D3', 'G3', 'A3', 'D4'] },
-  { id: 'gtr-open-g', label: 'Open G (D G D G B D)', category: 'Guitar', strings: ['D2', 'G2', 'D3', 'G3', 'B3', 'D4'] },
-  { id: 'gtr-open-d', label: 'Open D (D A D F# A D)', category: 'Guitar', strings: ['D2', 'A2', 'D3', 'F#3', 'A3', 'D4'] },
-  { id: 'gtr-open-e', label: 'Open E (E B E G# B E)', category: 'Guitar', strings: ['E2', 'B2', 'E3', 'G#3', 'B3', 'E4'] },
-
-  // Bass (4-string)
-  { id: 'bass-standard', label: 'Standard 4-string (E A D G)', category: 'Bass', strings: ['E1', 'A1', 'D2', 'G2'] },
-  { id: 'bass-drop-d', label: 'Drop D (D A D G)', category: 'Bass', strings: ['D1', 'A1', 'D2', 'G2'] },
-  { id: 'bass-half-down', label: 'Half-step down (Eb Ab Db Gb)', category: 'Bass', strings: ['D#1', 'G#1', 'C#2', 'F#2'] },
-
-  // Bouzouki (common 8-string courses; treat as 4 targets)
-  { id: 'bouzouki-irish-gdae', label: 'Irish (G D A E)', category: 'Bouzouki', strings: ['G2', 'D3', 'A3', 'E4'] },
-  { id: 'bouzouki-irish-adad', label: 'Irish (A D A D)', category: 'Bouzouki', strings: ['A2', 'D3', 'A3', 'D4'] },
-  { id: 'bouzouki-greek-cfad', label: 'Greek (C F A D)', category: 'Bouzouki', strings: ['C3', 'F3', 'A3', 'D4'] },
-]
-
-function buildTuningTargets(tuning, a4) {
-  const strings = Array.isArray(tuning?.strings) ? tuning.strings : []
-  return strings
-    .map((s) => {
-      const midi = noteNameToMidi(s)
-      if (midi == null) return null
-      return { note: s, midi, freq: midiToFreq(midi, a4) }
-    })
-    .filter(Boolean)
-}
 
 export default function Tuner({ getAudioContext } = {}) {
   const [refToneOn, setRefToneOn] = useState(false)

@@ -1,4 +1,19 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+
+const UNDO_STACK_MAX = 40
+
+function pickRecorderMime() {
+  if (typeof MediaRecorder === 'undefined') return ''
+  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
+  for (const c of candidates) {
+    try {
+      if (MediaRecorder.isTypeSupported(c)) return c
+    } catch {
+      /* */
+    }
+  }
+  return ''
+}
 import { feedbackFromFx, getDelayTimeSeconds } from '../lib/fxMath.js'
 import { createParallelFx } from '../lib/parallelFx.js'
 import { applyWaveformToOsc } from '../lib/periodicWaves.js'
@@ -224,6 +239,10 @@ export function useSynth() {
   )
   const drumKitRef = useRef(drumKit)
   const drumSampleBuffersRef = useRef(drumSampleBuffers)
+  const undoStackRef = useRef(/** @type {string[]} */ ([]))
+  const applyingUndoRef = useRef(false)
+  const recordDestRef = useRef(/** @type {MediaStreamAudioDestinationNode | null} */ (null))
+  const mediaRecorderRef = useRef(/** @type {MediaRecorder | null} */ (null))
   const instrumentPackCacheRef = useRef(
     new Map(), // string pack id -> { zones, loading }
   )
@@ -304,6 +323,9 @@ export function useSynth() {
     par.out.connect(master)
     master.connect(analyser)
     analyser.connect(ctx.destination)
+    const recordDest = ctx.createMediaStreamDestination()
+    master.connect(recordDest)
+    recordDestRef.current = recordDest
     drumToFxRef.current = drumToFx
     drumToDryRef.current = drumToDry
     parFxRef.current = par
@@ -530,13 +552,6 @@ export function useSynth() {
     }))
   }, [])
 
-  const applyDrumStyle = useCallback((id) => {
-    const p = DRUM_STYLE_PRESETS.find((x) => x.id === id)
-    if (!p) return
-    setDrumKit(JSON.parse(JSON.stringify(p.kit)))
-    setDrumSampleBuffers(createEmptyDrumSampleBuffers())
-  }, [])
-
   const getPresetSnapshot = useCallback(() => {
     return buildSnapshot({
       parts,
@@ -547,8 +562,26 @@ export function useSynth() {
     })
   }, [parts, fx, filterNorm, activePartIndex, drumKit])
 
+  const pushUndoSnapshot = useCallback(() => {
+    if (applyingUndoRef.current) return
+    try {
+      const snap = buildSnapshot({
+        parts: partsRef.current,
+        fx: fxStateRef.current,
+        filterNorm: filterNormRef.current,
+        activePartIndex: activePartIndexRef.current,
+        drumKit: drumKitRef.current,
+      })
+      undoStackRef.current.push(JSON.stringify(snap))
+      while (undoStackRef.current.length > UNDO_STACK_MAX) undoStackRef.current.shift()
+    } catch {
+      /* */
+    }
+  }, [])
+
   const applyPresetSnapshot = useCallback(
     (raw) => {
+      if (!applyingUndoRef.current) pushUndoSnapshot()
       setActiveFactoryPresetId(null)
       const n = normalizePresetData(raw)
       setParts(n.parts)
@@ -558,11 +591,94 @@ export function useSynth() {
       setDrumKit(n.drumKit)
       setDrumSampleBuffers(createEmptyDrumSampleBuffers())
     },
-    [setFilterFromNorm],
+    [setFilterFromNorm, pushUndoSnapshot],
   )
+
+  const undoPresetSnapshot = useCallback(() => {
+    const json = undoStackRef.current.pop()
+    if (!json) return false
+    applyingUndoRef.current = true
+    try {
+      const data = JSON.parse(json)
+      setActiveFactoryPresetId(null)
+      const n = normalizePresetData(data)
+      setParts(n.parts)
+      setFx(n.fx)
+      setFilterFromNorm(n.filterNorm)
+      setActivePartIndex(n.activePartIndex)
+      setDrumKit(n.drumKit)
+      setDrumSampleBuffers(createEmptyDrumSampleBuffers())
+      return true
+    } catch {
+      return false
+    } finally {
+      applyingUndoRef.current = false
+    }
+  }, [setFilterFromNorm])
+
+  const [isRecording, setIsRecording] = useState(false)
+
+  const toggleRecording = useCallback(async () => {
+    ensureContext()
+    const ctx = ctxRef.current
+    if (ctx?.state === 'suspended') {
+      try {
+        await ctx.resume()
+      } catch {
+        /* */
+      }
+    }
+    const dest = recordDestRef.current
+    if (!dest) return
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop()
+      return
+    }
+
+    const mime = pickRecorderMime()
+    try {
+      const mr = mime ? new MediaRecorder(dest.stream, { mimeType: mime }) : new MediaRecorder(dest.stream)
+      const chunks = /** @type {BlobPart[]} */ ([])
+      mr.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunks.push(e.data)
+      }
+      mr.onstop = () => {
+        setIsRecording(false)
+        mediaRecorderRef.current = null
+        try {
+          const type = mr.mimeType || 'audio/webm'
+          const ext = type.includes('mp4') ? 'm4a' : 'webm'
+          const blob = new Blob(chunks, { type })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `synth-lab-${new Date().toISOString().replace(/[:.]/g, '-')}.${ext}`
+          a.rel = 'noopener'
+          document.body.appendChild(a)
+          a.click()
+          a.remove()
+          URL.revokeObjectURL(url)
+        } catch {
+          window.alert('Could not save recording.')
+        }
+      }
+      mr.onerror = () => {
+        setIsRecording(false)
+        mediaRecorderRef.current = null
+      }
+      mediaRecorderRef.current = mr
+      mr.start(250)
+      setIsRecording(true)
+    } catch {
+      window.alert('Recording is not supported in this browser.')
+      setIsRecording(false)
+    }
+  }, [ensureContext])
 
   const applyFactorySynthPreset = useCallback(
     (patch, factoryPresetId) => {
+      pushUndoSnapshot()
       const n = normalizePresetData({
         v: PRESET_DATA_VERSION,
         parts: patch.parts,
@@ -579,7 +695,18 @@ export function useSynth() {
         setActiveFactoryPresetId(factoryPresetId)
       }
     },
-    [setFilterFromNorm],
+    [setFilterFromNorm, pushUndoSnapshot],
+  )
+
+  const applyDrumStyle = useCallback(
+    (id) => {
+      const p = DRUM_STYLE_PRESETS.find((x) => x.id === id)
+      if (!p) return
+      pushUndoSnapshot()
+      setDrumKit(JSON.parse(JSON.stringify(p.kit)))
+      setDrumSampleBuffers(createEmptyDrumSampleBuffers())
+    },
+    [pushUndoSnapshot],
   )
 
   const triggerDrum = useCallback(
@@ -633,6 +760,9 @@ export function useSynth() {
     noteOff,
     getPresetSnapshot,
     applyPresetSnapshot,
+    undoPresetSnapshot,
+    isRecording,
+    toggleRecording,
     applyFactorySynthPreset,
     activeFactoryPresetId,
     triggerDrum,

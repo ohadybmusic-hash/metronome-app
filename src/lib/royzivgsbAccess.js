@@ -4,8 +4,9 @@ const ROYZIVGSB_ALLOWED_EMAILS = new Set(
 )
 
 /**
- * Gate for bundled course PDFs. UI only — files under /practice-pdfs/royzivgsb/ remain
- * reachable by direct URL unless you move them to private storage + signed URLs.
+ * Gate for bundled course PDFs and the private practice log (session entries sync in user_data).
+ * UI only for PDFs — files under /practice-pdfs/royzivgsb/ remain reachable by direct URL
+ * unless you move them to private storage + signed URLs.
  */
 export function canAccessRoyzivGsbSheetLibrary(email) {
   if (!email) return false

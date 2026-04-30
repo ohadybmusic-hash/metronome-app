@@ -120,38 +120,6 @@
   box-shadow: 0 0 20px rgba(57, 255, 20, 0.35);
 }
 
-.authGate__oauth {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.authGate__btn--oauth {
-  height: 44px;
-  font-weight: 650;
-  letter-spacing: -0.2px;
-}
-
-.authGate__btn--google {
-  background: #ffffff;
-  color: #111827;
-  border-color: rgba(17, 24, 39, 0.14);
-}
-
-.authGate__btn--google:hover {
-  border-color: rgba(17, 24, 39, 0.26);
-}
-
-.authGate__btn--apple {
-  background: #111827;
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.authGate__btn--apple:hover {
-  border-color: rgba(255, 255, 255, 0.18);
-}
-
 .authGate__btn--guest {
   height: 44px;
   border-style: dashed;
@@ -180,10 +148,6 @@
 
 @media (max-width: 680px) {
   .authGate__form {
-    grid-template-columns: 1fr;
-  }
-
-  .authGate__oauth {
     grid-template-columns: 1fr;
   }
 }

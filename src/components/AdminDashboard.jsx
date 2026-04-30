@@ -131,7 +131,7 @@ export default function AdminDashboard() {
   }, [isAdmin, loading, refreshIndex])
 
   if (loading) return <div className="admin">Loading…</div>
-  if (!isAdmin) return <Navigate to="/" replace />
+  if (!isAdmin) return <Navigate to="/metronome" replace />
 
   const refresh = () => setRefreshIndex((x) => x + 1)
 

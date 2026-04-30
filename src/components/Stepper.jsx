@@ -1,10 +1,5 @@
 import './Stepper.css'
-
-function clamp(n, min, max) {
-  const v = Number(n)
-  if (!Number.isFinite(v)) return min
-  return Math.min(max, Math.max(min, v))
-}
+import { clampNumber } from '../lib/clamp.js'
 
 export default function Stepper({
   value,
@@ -18,8 +13,8 @@ export default function Stepper({
   const v = Number(value)
   const safe = Number.isFinite(v) ? v : 0
 
-  const dec = () => onChange(clamp(safe - step, min, max))
-  const inc = () => onChange(clamp(safe + step, min, max))
+  const dec = () => onChange(clampNumber(safe - step, min, max))
+  const inc = () => onChange(clampNumber(safe + step, min, max))
 
   return (
     <div className={`stepper ${disabled ? 'stepper--disabled' : ''}`}>

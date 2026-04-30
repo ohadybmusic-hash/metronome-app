@@ -8,6 +8,73 @@ import { canAccessRoyzivGsbSheetLibrary } from './royzivgsbAccess.js'
  * @typedef {{ id: string, label: string, pathPrefix: string, canAccess: (email: string) => boolean, sections: PracticePdfSection[] }} PracticePdfLibraryRoot
  */
 
+/**
+ * Libraries visible to this email (same gating as the Sheet library UI).
+ * @param {string | null | undefined} email
+ * @returns {PracticePdfLibraryRoot[]}
+ */
+export function getVisiblePracticePdfLibraries(email) {
+  const e = String(email ?? '').trim()
+  if (!e) return []
+  return PRACTICE_PDF_LIBRARIES.filter((lib) => lib.canAccess(e))
+}
+
+/** @param {string | null | undefined} email */
+export function userHasVisiblePracticeSheetLibrary(email) {
+  return getVisiblePracticePdfLibraries(email).length > 0
+}
+
+/**
+ * Map each sheet item title → bundled PDF path (first wins if titles repeat).
+ * @param {PracticePdfLibraryRoot[]} visibleLibs
+ * @returns {Record<string, string>}
+ */
+export function libraryExerciseTitleToPdfPath(visibleLibs) {
+  /** @type {Record<string, string>} */
+  const out = {}
+  for (const lib of visibleLibs) {
+    const prefix = lib.pathPrefix.replace(/\/$/, '')
+    for (const sec of lib.sections) {
+      for (const item of sec.items) {
+        if (!out[item.title]) out[item.title] = `${prefix}/${item.file}`
+      }
+    }
+  }
+  return out
+}
+
+/** Ordered exercise names matching the sheet library (for the practice log dropdown). */
+export function listLibraryExerciseTitlesInOrder(visibleLibs) {
+  const titles = []
+  for (const lib of visibleLibs) {
+    for (const sec of lib.sections) {
+      for (const item of sec.items) titles.push(item.title)
+    }
+  }
+  return titles
+}
+
+/**
+ * Flatten visible libraries into folder choices for custom exercise placement.
+ * @param {PracticePdfLibraryRoot[]} visibleLibs
+ * @returns {{ libId: string, sectionTitle: string, label: string, value: string }[]}
+ */
+export function listLibrarySectionChoices(visibleLibs) {
+  const out = []
+  for (const lib of visibleLibs) {
+    for (const sec of lib.sections) {
+      const value = `${lib.id}:::${sec.title}`
+      out.push({
+        libId: lib.id,
+        sectionTitle: sec.title,
+        label: `${lib.label} › ${sec.title}`,
+        value,
+      })
+    }
+  }
+  return out
+}
+
 /** @type {PracticePdfLibraryRoot[]} */
 export const PRACTICE_PDF_LIBRARIES = [
   {

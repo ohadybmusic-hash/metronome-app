@@ -1,58 +1,62 @@
 import './Metronome.css'
 import { useExerciseProgress } from '../hooks/useExerciseProgress.js'
+import { useAuth } from '../context/useAuth.js'
 import {
-  DEFAULT_EXERCISE_NAMES,
   DEFAULT_SHEET_PDF_BY_EXERCISE,
+  DEFAULT_EXERCISE_NAMES,
+  IMPLICIT_CUSTOM_LIBRARY_SECTION,
 } from '../lib/exerciseProgressDefaults.js'
+import {
+  getVisiblePracticePdfLibraries,
+  libraryExerciseTitleToPdfPath,
+  listLibraryExerciseTitlesInOrder,
+  listLibrarySectionChoices,
+  userHasVisiblePracticeSheetLibrary,
+} from '../lib/practicePdfCategories.js'
+import {
+  CUSTOM_VALUE,
+  formatDisplayDate,
+  normalizeExerciseLabel,
+  pdfUrlForPreview,
+  parseOptNumber,
+  resolveExercisePdfUrl,
+} from '../lib/exerciseProgressUi.js'
 import PracticePdfLibrary from './PracticePdfLibrary.jsx'
-import { PracticeSheetPdfEmbed } from './PracticeSheetPdfEmbed.jsx'
-import { PracticePdfLink } from '../context/IosPdfReaderContext.jsx'
-import { useEffect, useMemo, useState } from 'react'
-
-const CUSTOM_VALUE = '__custom__'
-
-function parseOptNumber(v) {
-  if (v === '' || v == null) return null
-  const n = Number(v)
-  return Number.isFinite(n) ? n : null
-}
-
-function resolveExercisePdfUrl(exerciseName, sheetsByExercise) {
-  const n = String(exerciseName ?? '').trim()
-  if (!n) return ''
-  const saved = sheetsByExercise[n]?.pdfUrl
-  if (saved && String(saved).trim()) return String(saved).trim()
-  const def = DEFAULT_SHEET_PDF_BY_EXERCISE[n]
-  return def && String(def).trim() ? String(def).trim() : ''
-}
-
-function pdfUrlForPreview(draftUrl, exerciseName, sheetsByExercise) {
-  const d = String(draftUrl ?? '').trim()
-  if (d.startsWith('/') || /^https?:\/\//i.test(d)) return d
-  return resolveExercisePdfUrl(exerciseName, sheetsByExercise)
-}
-
-function formatDisplayDate(iso) {
-  if (!iso) return '—'
-  const [y, m, d] = iso.split('-').map(Number)
-  if (!y || !m || !d) return iso
-  try {
-    return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
-  } catch {
-    return iso
-  }
-}
+import CustomExerciseNamesPanel from './exerciseProgress/CustomExerciseNamesPanel.jsx'
+import LogSessionForm from './exerciseProgress/LogSessionForm.jsx'
+import PracticeLogCardsMobile from './exerciseProgress/PracticeLogCardsMobile.jsx'
+import PracticeLogFilterBar from './exerciseProgress/PracticeLogFilterBar.jsx'
+import PracticeLogFilterSheetPreview from './exerciseProgress/PracticeLogFilterSheetPreview.jsx'
+import PracticeLogTableDesktop from './exerciseProgress/PracticeLogTableDesktop.jsx'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 export default function ExerciseProgress({ met, userId, exerciseRemote, exerciseProgressRef }) {
+  const { user } = useAuth()
+  const practiceLogEnabled = userHasVisiblePracticeSheetLibrary(user?.email)
+  const visibleLibs = useMemo(() => getVisiblePracticePdfLibraries(user?.email), [user?.email])
+  const presetExerciseNames = useMemo(
+    () => (practiceLogEnabled ? listLibraryExerciseTitlesInOrder(visibleLibs) : null),
+    [practiceLogEnabled, visibleLibs],
+  )
+  const sheetDefaults = useMemo(() => {
+    const fromLib = libraryExerciseTitleToPdfPath(visibleLibs)
+    return { ...DEFAULT_SHEET_PDF_BY_EXERCISE, ...fromLib }
+  }, [visibleLibs])
+
+  const sectionChoices = useMemo(() => listLibrarySectionChoices(visibleLibs), [visibleLibs])
+
+  const implicitCustomPlacement = useMemo(() => {
+    const lib = visibleLibs[0]
+    if (!lib) return null
+    return { libId: lib.id, sectionTitle: IMPLICIT_CUSTOM_LIBRARY_SECTION }
+  }, [visibleLibs])
+
   const scheduleUserDataSync = met?.scheduleUserDataSync
   const {
     entries,
     exerciseOptions,
     customExerciseNames,
+    customExercisePlacements,
     addCustomExerciseName,
     removeCustomExerciseName,
     sheetsByExercise,
@@ -65,6 +69,9 @@ export default function ExerciseProgress({ met, userId, exerciseRemote, exercise
     exerciseRemote,
     exerciseProgressRef,
     scheduleUserDataSync,
+    practiceLogEnabled,
+    presetExerciseNames,
+    implicitCustomPlacement,
   })
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), [])
@@ -82,11 +89,46 @@ export default function ExerciseProgress({ met, userId, exerciseRemote, exercise
   const [editingId, setEditingId] = useState(null)
   const [filterExercise, setFilterExercise] = useState('')
   const [manageOpen, setManageOpen] = useState(false)
+  /** Bump with Manage panel open + `manageDraftInitial` to copy log-form name into the panel. */
+  const [manageDraftSyncKey, setManageDraftSyncKey] = useState(0)
+  const [manageDraftInitial, setManageDraftInitial] = useState('')
+  const [logFormHint, setLogFormHint] = useState(/** @type {string | null} */ (null))
   const [sheetUrlDraft, setSheetUrlDraft] = useState('')
   const [showFormPdf, setShowFormPdf] = useState(false)
   const [showFilterPdf, setShowFilterPdf] = useState(false)
 
   const bpm = met?.bpm != null ? Math.round(met.bpm) : null
+
+  const openManageWithDraft = useCallback((initialDraft) => {
+    setManageOpen(true)
+    setManageDraftInitial(initialDraft)
+    setManageDraftSyncKey((k) => k + 1)
+    setLogFormHint(null)
+  }, [])
+
+  useEffect(() => {
+    if (!manageOpen || manageDraftSyncKey < 1) return
+    const id = requestAnimationFrame(() => {
+      document.getElementById('custom-exercise-manage-panel')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    })
+    return () => cancelAnimationFrame(id)
+  }, [manageOpen, manageDraftSyncKey])
+
+  useEffect(() => {
+    setLogFormHint(null)
+  }, [customNameInput, exerciseSelect])
+
+  useEffect(() => {
+    if (!practiceLogEnabled || !presetExerciseNames?.length) return
+    setExerciseSelect((prev) => {
+      if (prev === CUSTOM_VALUE) return prev
+      if (presetExerciseNames.includes(prev)) return prev
+      return presetExerciseNames[0]
+    })
+  }, [practiceLogEnabled, presetExerciseNames])
 
   const resolvedExerciseName =
     exerciseSelect === CUSTOM_VALUE ? customNameInput.trim() : exerciseSelect.trim()
@@ -97,14 +139,19 @@ export default function ExerciseProgress({ met, userId, exerciseRemote, exercise
       return
     }
     const saved = sheetsByExercise[resolvedExerciseName]?.pdfUrl?.trim()
-    const def = DEFAULT_SHEET_PDF_BY_EXERCISE[resolvedExerciseName]
+    const def = sheetDefaults[resolvedExerciseName]
     const d = def && String(def).trim() ? String(def).trim() : ''
     setSheetUrlDraft(saved || d || '')
-  }, [resolvedExerciseName, sheetsByExercise])
+  }, [resolvedExerciseName, sheetsByExercise, sheetDefaults])
 
-  const formPdfSrc = pdfUrlForPreview(sheetUrlDraft, resolvedExerciseName, sheetsByExercise)
+  const formPdfSrc = pdfUrlForPreview(
+    sheetUrlDraft,
+    resolvedExerciseName,
+    sheetsByExercise,
+    sheetDefaults,
+  )
   const filterPdfSrc = filterExercise
-    ? resolveExercisePdfUrl(filterExercise, sheetsByExercise)
+    ? resolveExercisePdfUrl(filterExercise, sheetsByExercise, sheetDefaults)
     : ''
 
   const filteredEntries = useMemo(() => {
@@ -112,9 +159,32 @@ export default function ExerciseProgress({ met, userId, exerciseRemote, exercise
     return entries.filter((e) => e.exerciseName === filterExercise)
   }, [entries, filterExercise])
 
+  const customNameIsOnSavedList = useMemo(() => {
+    if (exerciseSelect !== CUSTOM_VALUE) return false
+    const r = normalizeExerciseLabel(customNameInput)
+    if (!r) return false
+    return customExerciseNames.some((n) => normalizeExerciseLabel(n) === r)
+  }, [exerciseSelect, customNameInput, customExerciseNames])
+
+  const cancelCustomExerciseMode = () => {
+    setExerciseSelect(
+      presetExerciseNames?.[0] ?? DEFAULT_EXERCISE_NAMES[0] ?? exerciseOptions[0] ?? '',
+    )
+    setCustomNameInput('')
+  }
+
+  const deleteCurrentCustomFromList = () => {
+    const r = normalizeExerciseLabel(customNameInput)
+    if (!r) return
+    removeCustomExerciseName(r)
+    cancelCustomExerciseMode()
+  }
+
   const resetForm = () => {
     setDate(today)
-    setExerciseSelect(DEFAULT_EXERCISE_NAMES[0] ?? exerciseOptions[0] ?? '')
+    setExerciseSelect(
+      presetExerciseNames?.[0] ?? DEFAULT_EXERCISE_NAMES[0] ?? exerciseOptions[0] ?? '',
+    )
     setCustomNameInput('')
     setLastTempo('')
     setMaxTempo('')
@@ -145,10 +215,29 @@ export default function ExerciseProgress({ met, userId, exerciseRemote, exercise
 
   const submit = (ev) => {
     ev.preventDefault()
+    setLogFormHint(null)
     let name = resolvedExerciseName
     if (!name) return
+
     if (exerciseSelect === CUSTOM_VALUE) {
-      addCustomExerciseName(name)
+      const r = normalizeExerciseLabel(customNameInput)
+      const onSavedList = customExerciseNames.some((n) => normalizeExerciseLabel(n) === r)
+      if (editingId) {
+        const prevEntry = entries.find((e) => e.id === editingId)
+        const prevName = prevEntry ? normalizeExerciseLabel(prevEntry.exerciseName) : ''
+        const nameUnchanged = prevName === r
+        if (!nameUnchanged && !onSavedList) {
+          setLogFormHint(
+            'Save the new name first: press Save below to open Manage list, pick a folder, and Add to list.',
+          )
+          return
+        }
+      } else if (!onSavedList) {
+        setLogFormHint(
+          'Save this exercise first: press Save below to open Manage list, pick a folder, and Add to list. Then add your log entry.',
+        )
+        return
+      }
     }
 
     const row = {
@@ -175,496 +264,157 @@ export default function ExerciseProgress({ met, userId, exerciseRemote, exercise
     if (editingId === id) resetForm()
   }
 
+  const resolveRowPdf = (exerciseName) =>
+    resolveExercisePdfUrl(exerciseName, sheetsByExercise, sheetDefaults)
+
+  if (!practiceLogEnabled) {
+    return (
+      <div className="exerciseProgress">
+        <div className="text-xl font-semibold tracking-tight">Practice log</div>
+        <p className="mt-3 max-w-lg text-sm text-[var(--text)]">
+          Session logs are tied to your sheet library. Sign in with the account that has course
+          access to log practice against those PDFs. Without library access, no log entries are
+          stored or shown.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="exerciseProgress">
       <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="text-xl font-semibold tracking-tight">Practice log</div>
           <div className="mt-1 text-sm text-[var(--text)]">
-            Track sessions like your spreadsheet: date, exercise, tempos, sets, accuracy, notes.
-            Attach a PDF URL per exercise (or bundle files under{' '}
-            <code className="text-[11px]">public/practice-pdfs/</code> and map names in code).
+            Custom exercises must be saved via Manage list (Add custom exercise or Save in the form).
+            Then log sessions and attach PDF links as needed.
             {userId ? ' Saved to your account (syncs with this device’s offline copy).' : null}
           </div>
         </div>
-        <button
-          type="button"
-          className="metronome__btn self-start"
-          onClick={() => setManageOpen((v) => !v)}
-        >
-          {manageOpen ? 'Close' : 'Manage'} custom exercises
-        </button>
-      </div>
-
-      <PracticePdfLibrary />
-
-      {manageOpen ? (
-        <div className="mb-6 rounded-2xl border border-[var(--border)] bg-[var(--surface-2,var(--surface))] p-4">
-          <div className="text-sm font-medium text-[var(--text-h)]">Custom exercise names</div>
-          <p className="mt-1 text-xs text-[var(--text)]">
-            Presets match your workbook (Ascend, 2 strings, etc.). Names you add here stay in the
-            dropdown.
-          </p>
-          {customExerciseNames.length === 0 ? (
-            <div className="mt-3 text-xs text-[var(--text)]">No custom names yet.</div>
-          ) : (
-            <ul className="mt-3 flex flex-wrap gap-2">
-              {customExerciseNames.map((n) => (
-                <li
-                  key={n}
-                  className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-h)]"
-                >
-                  <span>{n}</span>
-                  <button
-                    type="button"
-                    className="metronome__linkBtn !p-0 !text-[10px]"
-                    onClick={() => removeCustomExerciseName(n)}
-                  >
-                    Remove
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      ) : null}
-
-      <form
-        onSubmit={submit}
-        className="mb-8 grid gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:grid-cols-2 lg:grid-cols-3"
-      >
-        <div className="sm:col-span-2 lg:col-span-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-sm font-medium text-[var(--text-h)]">
-            {editingId ? 'Edit entry' : 'Log session'}
-          </div>
-          {editingId ? (
-            <button type="button" className="metronome__linkBtn" onClick={resetForm}>
-              Cancel edit
-            </button>
-          ) : null}
-        </div>
-
-        <label className="metronome__label">
-          Date
-          <input
-            type="date"
-            className="metronome__select w-full"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            required
-          />
-        </label>
-
-        <label className="metronome__label sm:col-span-2">
-          Exercise
-          <select
-            className="metronome__select"
-            value={exerciseSelect}
-            onChange={(e) => setExerciseSelect(e.target.value)}
+        <div className="flex flex-wrap gap-2 self-start">
+          <button
+            type="button"
+            className="metronome__btn metronome__btn--primary"
+            onClick={() => {
+              setEditingId(null)
+              openManageWithDraft('')
+            }}
           >
-            {exerciseOptions.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-            <option value={CUSTOM_VALUE}>＋ Custom / new name…</option>
-          </select>
-        </label>
-
-        {exerciseSelect === CUSTOM_VALUE ? (
-          <label className="metronome__label sm:col-span-2 lg:col-span-3">
-            Custom name
-            <input
-              type="text"
-              className="metronome__select w-full"
-              value={customNameInput}
-              onChange={(e) => setCustomNameInput(e.target.value)}
-              placeholder="e.g. Chromatic — new variation"
-              required
-            />
-          </label>
-        ) : null}
-
-        <div className="metronome__label sm:col-span-2 lg:col-span-3 space-y-2">
-          <span className="block">
-            Sheet music (PDF){' '}
-            {resolvedExerciseName ? (
-              <span className="text-[var(--text)]">· {resolvedExerciseName}</span>
-            ) : null}
-          </span>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-            <input
-              type="text"
-              inputMode="url"
-              autoComplete="off"
-              className="metronome__select min-w-0 flex-1 sm:max-w-xl"
-              value={sheetUrlDraft}
-              onChange={(e) => setSheetUrlDraft(e.target.value)}
-              placeholder="https://…/score.pdf or /practice-pdfs/your-file.pdf"
-            />
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="metronome__btn"
-                disabled={!resolvedExerciseName}
-                onClick={() => setSheetPdfUrl(resolvedExerciseName, sheetUrlDraft)}
-              >
-                Save link
-              </button>
-              <button
-                type="button"
-                className="metronome__btn"
-                disabled={!resolvedExerciseName}
-                onClick={() => {
-                  setSheetPdfUrl(resolvedExerciseName, '')
-                  const d = DEFAULT_SHEET_PDF_BY_EXERCISE[resolvedExerciseName]
-                  setSheetUrlDraft(d && String(d).trim() ? String(d).trim() : '')
-                }}
-              >
-                Clear saved
-              </button>
-              {formPdfSrc ? (
-                <PracticePdfLink
-                  className="metronome__btn metronome__btn--primary !no-underline"
-                  href={formPdfSrc}
-                  title={resolvedExerciseName || 'Sheet'}
-                >
-                  Open PDF
-                </PracticePdfLink>
-              ) : null}
-              {formPdfSrc ? (
-                <button
-                  type="button"
-                  className="metronome__btn"
-                  onClick={() => setShowFormPdf((v) => !v)}
-                >
-                  {showFormPdf ? 'Hide' : 'Show'} preview
-                </button>
-              ) : null}
-            </div>
-          </div>
-          {showFormPdf && formPdfSrc ? (
-            <div className="mt-2">
-              <PracticeSheetPdfEmbed
-                title={`Sheet preview: ${resolvedExerciseName}`}
-                src={formPdfSrc}
-                iframeClassName="h-[min(70vh,520px)] w-full border-0 bg-[#2a2a2e]"
-              />
-            </div>
-          ) : null}
-        </div>
-
-        <label className="metronome__label">
-          Last tempo (BPM)
-          <input
-            type="number"
-            min="1"
-            max="400"
-            step="1"
-            className="metronome__select w-full"
-            value={lastTempo}
-            onChange={(e) => setLastTempo(e.target.value)}
-            placeholder="—"
-          />
-        </label>
-
-        <label className="metronome__label">
-          Max tempo (BPM)
-          <input
-            type="number"
-            min="1"
-            max="400"
-            step="1"
-            className="metronome__select w-full"
-            value={maxTempo}
-            onChange={(e) => setMaxTempo(e.target.value)}
-            placeholder="—"
-          />
-        </label>
-
-        {bpm != null ? (
-          <div className="flex flex-wrap items-end gap-2 sm:col-span-2 lg:col-span-1">
-            <button
-              type="button"
-              className="metronome__btn"
-              onClick={() => setLastTempo(String(bpm))}
-            >
-              Metronome → Last
-            </button>
-            <button
-              type="button"
-              className="metronome__btn"
-              onClick={() => setMaxTempo(String(bpm))}
-            >
-              Metronome → Max
-            </button>
-          </div>
-        ) : null}
-
-        <label className="metronome__label">
-          Sets
-          <input
-            type="number"
-            min="0"
-            step="1"
-            className="metronome__select w-full"
-            value={sets}
-            onChange={(e) => setSets(e.target.value)}
-            placeholder="—"
-          />
-        </label>
-
-        <label className="metronome__label">
-          Accuracy (%)
-          <input
-            type="number"
-            min="0"
-            max="100"
-            step="1"
-            className="metronome__select w-full"
-            value={accuracyRate}
-            onChange={(e) => setAccuracyRate(e.target.value)}
-            placeholder="—"
-          />
-        </label>
-
-        <label className="metronome__label sm:col-span-2 lg:col-span-3">
-          Notes
-          <textarea
-            className="metronome__select min-h-[4.5rem] w-full resize-y py-2"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Session notes…"
-            rows={3}
-          />
-        </label>
-
-        <div className="sm:col-span-2 lg:col-span-3 flex flex-wrap gap-2">
-          <button type="submit" className="metronome__btn metronome__btn--primary">
-            {editingId ? 'Save changes' : 'Add entry'}
+            Add custom exercise
+          </button>
+          <button
+            type="button"
+            className="metronome__btn"
+            onClick={() => {
+              if (manageOpen) {
+                setManageOpen(false)
+                setManageDraftSyncKey(0)
+                setManageDraftInitial('')
+              } else {
+                setManageOpen(true)
+              }
+            }}
+          >
+            {manageOpen ? 'Close' : 'Manage'} list
           </button>
         </div>
-      </form>
-
-      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <label className="metronome__label mb-0 max-w-md">
-          Filter by exercise
-          <select
-            className="metronome__select"
-            value={filterExercise}
-            onChange={(e) => setFilterExercise(e.target.value)}
-          >
-            <option value="">All</option>
-            {exerciseOptions.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="text-xs text-[var(--text)]">{filteredEntries.length} entries</div>
       </div>
 
-      {filterExercise && filterPdfSrc ? (
-        <div className="mb-6 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="text-sm font-medium text-[var(--text-h)]">Sheet: {filterExercise}</div>
-            <div className="flex flex-wrap gap-2">
-              <PracticePdfLink
-                className="metronome__btn metronome__btn--primary !no-underline"
-                href={filterPdfSrc}
-                title={filterExercise || 'Sheet'}
-              >
-                Open PDF
-              </PracticePdfLink>
-              <button
-                type="button"
-                className="metronome__btn"
-                onClick={() => setShowFilterPdf((v) => !v)}
-              >
-                {showFilterPdf ? 'Hide' : 'Show'} preview
-              </button>
-            </div>
-          </div>
-          {showFilterPdf ? (
-            <div className="mt-2">
-              <PracticeSheetPdfEmbed
-                title={`Sheet: ${filterExercise}`}
-                src={filterPdfSrc}
-                iframeClassName="h-[min(55vh,420px)] w-full border-0 bg-[#2a2a2e]"
-              />
-            </div>
-          ) : null}
-        </div>
+      <PracticePdfLibrary
+        visibleLibraries={visibleLibs}
+        customExerciseNames={customExerciseNames}
+        customExercisePlacements={customExercisePlacements}
+        sheetsByExercise={sheetsByExercise}
+      />
+
+      {manageOpen ? (
+        <CustomExerciseNamesPanel
+          customExerciseNames={customExerciseNames}
+          sectionChoices={sectionChoices}
+          visibleLibraries={visibleLibs}
+          draftSyncKey={manageDraftSyncKey}
+          draftInitialFromForm={manageDraftInitial}
+          onSuccessfulAddToList={() => setLogFormHint(null)}
+          onAddName={addCustomExerciseName}
+          onRemoveName={removeCustomExerciseName}
+        />
       ) : null}
 
-      {/* Desktop table */}
-      <div className="hidden md:block overflow-x-auto rounded-2xl border border-[var(--border)]">
-        <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-          <thead>
-            <tr className="border-b border-[var(--border)] bg-[var(--surface-2,var(--surface))] font-mono text-[11px] uppercase tracking-wide text-[var(--text)]">
-              <th className="px-3 py-2">Date</th>
-              <th className="px-3 py-2">Exercise</th>
-              <th className="px-3 py-2 w-14">Sheet</th>
-              <th className="px-3 py-2 text-right">Last</th>
-              <th className="px-3 py-2 text-right">Max</th>
-              <th className="px-3 py-2 text-right">Sets</th>
-              <th className="px-3 py-2 text-right">Acc %</th>
-              <th className="px-3 py-2">Notes</th>
-              <th className="px-3 py-2 w-28"> </th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredEntries.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="px-3 py-8 text-center text-[var(--text)]">
-                  No entries yet. Log a session above.
-                </td>
-              </tr>
-            ) : (
-              filteredEntries.map((e) => {
-                const rowPdf = resolveExercisePdfUrl(e.exerciseName, sheetsByExercise)
-                return (
-                <tr key={e.id} className="border-b border-[var(--border)] last:border-b-0">
-                  <td className="px-3 py-2 whitespace-nowrap text-[var(--text-h)]">
-                    {formatDisplayDate(e.date)}
-                  </td>
-                  <td className="px-3 py-2 text-[var(--text-h)]">{e.exerciseName}</td>
-                  <td className="px-3 py-2">
-                    {rowPdf ? (
-                      <PracticePdfLink
-                        href={rowPdf}
-                        className="metronome__linkBtn !text-[11px]"
-                        title={e.exerciseName || 'Sheet'}
-                      >
-                        PDF
-                      </PracticePdfLink>
-                    ) : (
-                      <span className="text-[var(--text)]">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {e.lastTempo != null ? e.lastTempo : '—'}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {e.maxTempo != null ? e.maxTempo : '—'}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {e.sets != null ? e.sets : '—'}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {e.accuracyRate != null ? e.accuracyRate : '—'}
-                  </td>
-                  <td className="px-3 py-2 max-w-[220px] truncate text-[var(--text)]" title={e.notes}>
-                    {e.notes || '—'}
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap gap-1 justify-end">
-                      <button
-                        type="button"
-                        className="metronome__linkBtn !text-[11px]"
-                        onClick={() => loadEntryForEdit(e)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="metronome__linkBtn !text-[11px]"
-                        onClick={() => onDelete(e.id)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      <LogSessionForm
+        onSubmit={submit}
+        editingId={editingId}
+        onCancelEdit={resetForm}
+        date={date}
+        onDateChange={setDate}
+        exerciseSelect={exerciseSelect}
+        onExerciseSelectChange={setExerciseSelect}
+        exerciseOptions={exerciseOptions}
+        customNameInput={customNameInput}
+        onCustomNameInputChange={setCustomNameInput}
+        resolvedExerciseName={resolvedExerciseName}
+        sheetUrlDraft={sheetUrlDraft}
+        onSheetUrlDraftChange={setSheetUrlDraft}
+        onSaveSheetUrl={() => setSheetPdfUrl(resolvedExerciseName, sheetUrlDraft)}
+        onClearSavedSheet={() => {
+          setSheetPdfUrl(resolvedExerciseName, '')
+          const d = sheetDefaults[resolvedExerciseName]
+          setSheetUrlDraft(d && String(d).trim() ? String(d).trim() : '')
+        }}
+        formPdfSrc={formPdfSrc}
+        showFormPdf={showFormPdf}
+        onToggleFormPdf={() => setShowFormPdf((v) => !v)}
+        lastTempo={lastTempo}
+        onLastTempoChange={setLastTempo}
+        maxTempo={maxTempo}
+        onMaxTempoChange={setMaxTempo}
+        sets={sets}
+        onSetsChange={setSets}
+        accuracyRate={accuracyRate}
+        onAccuracyRateChange={setAccuracyRate}
+        notes={notes}
+        onNotesChange={setNotes}
+        bpm={bpm}
+        onCancelCustomExercise={cancelCustomExerciseMode}
+        onDeleteCustomExerciseFromList={deleteCurrentCustomFromList}
+        onSaveCustomOpensManage={() => {
+          const n = normalizeExerciseLabel(customNameInput)
+          if (!n) return
+          openManageWithDraft(n)
+        }}
+        onClearCustomNameInput={() => setCustomNameInput('')}
+        customNameIsOnSavedList={customNameIsOnSavedList}
+        logFormHint={logFormHint}
+      />
 
-      {/* Mobile cards */}
-      <div className="md:hidden flex flex-col gap-3">
-        {filteredEntries.length === 0 ? (
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 text-center text-sm text-[var(--text)]">
-            No entries yet.
-          </div>
-        ) : (
-          filteredEntries.map((e) => {
-            const cardPdf = resolveExercisePdfUrl(e.exerciseName, sheetsByExercise)
-            return (
-            <div
-              key={e.id}
-              className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="font-medium text-[var(--text-h)]">{e.exerciseName}</div>
-                  <div className="mt-0.5 text-xs text-[var(--text)]">{formatDisplayDate(e.date)}</div>
-                  {cardPdf ? (
-                    <PracticePdfLink
-                      href={cardPdf}
-                      className="mt-1 inline-block text-xs metronome__linkBtn !p-0"
-                      title={e.exerciseName || 'Sheet'}
-                    >
-                      Sheet PDF
-                    </PracticePdfLink>
-                  ) : null}
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    type="button"
-                    className="metronome__linkBtn !text-[11px]"
-                    onClick={() => loadEntryForEdit(e)}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="metronome__linkBtn !text-[11px]"
-                    onClick={() => onDelete(e.id)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-              <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-                <div>
-                  <dt className="text-[var(--text)]">Last tempo</dt>
-                  <dd className="tabular-nums text-[var(--text-h)]">
-                    {e.lastTempo != null ? e.lastTempo : '—'}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-[var(--text)]">Max tempo</dt>
-                  <dd className="tabular-nums text-[var(--text-h)]">
-                    {e.maxTempo != null ? e.maxTempo : '—'}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-[var(--text)]">Sets</dt>
-                  <dd className="tabular-nums text-[var(--text-h)]">
-                    {e.sets != null ? e.sets : '—'}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-[var(--text)]">Accuracy</dt>
-                  <dd className="tabular-nums text-[var(--text-h)]">
-                    {e.accuracyRate != null ? `${e.accuracyRate}%` : '—'}
-                  </dd>
-                </div>
-              </dl>
-              {e.notes ? (
-                <p className="mt-3 border-t border-[var(--border)] pt-3 text-xs text-[var(--text)]">
-                  {e.notes}
-                </p>
-              ) : null}
-            </div>
-            )
-          })
-        )}
-      </div>
+      <PracticeLogFilterBar
+        filterExercise={filterExercise}
+        onFilterExerciseChange={setFilterExercise}
+        exerciseOptions={exerciseOptions}
+        entryCount={filteredEntries.length}
+      />
+
+      <PracticeLogFilterSheetPreview
+        filterExercise={filterExercise}
+        filterPdfSrc={filterPdfSrc}
+        showFilterPdf={showFilterPdf}
+        onToggleFilterPdf={() => setShowFilterPdf((v) => !v)}
+      />
+
+      <PracticeLogTableDesktop
+        entries={filteredEntries}
+        resolvePdfUrl={resolveRowPdf}
+        formatDisplayDate={formatDisplayDate}
+        onEdit={loadEntryForEdit}
+        onDelete={onDelete}
+      />
+
+      <PracticeLogCardsMobile
+        entries={filteredEntries}
+        resolvePdfUrl={resolveRowPdf}
+        formatDisplayDate={formatDisplayDate}
+        onEdit={loadEntryForEdit}
+        onDelete={onDelete}
+      />
     </div>
   )
 }

@@ -223,3 +223,42 @@ code {
   pointer-events: none;
   border-radius: 9999px;
 }
+
+/* Stitch / Material Symbols baseline */
+.material-symbols-outlined {
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+}
+
+/* Obsidian metronome layout helpers */
+.lcd-inset-obsidian {
+  box-shadow: inset 0px 2px 8px rgba(0, 0, 0, 0.8);
+  background: #0d0e10;
+}
+
+.scan-line-obsidian {
+  background: linear-gradient(to bottom, rgba(79, 152, 163, 0.05) 50%, transparent 50%);
+  background-size: 100% 4px;
+}
+
+.active-glow-obsidian {
+  text-shadow: 0 0 12px rgba(138, 210, 222, 0.6);
+}
+
+.scanline-overlay-sw {
+  background: linear-gradient(to bottom, rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+  background-size: 100% 4px;
+}
+
+.well-inset-light {
+  background-color: #d9dadc;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.rack-panel-light {
+  border: 1px solid #d1d9e0;
+  background-color: #edeef0;
+}

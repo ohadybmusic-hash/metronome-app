@@ -3,7 +3,7 @@ import { useAuth } from '../context/useAuth'
 import './AuthGate.css'
 
 export default function AuthGate({ onOpenEmailPassword } = {}) {
-  const { signInWithMagicLink, signInWithOAuth, signInAnonymously, authLinkError, dismissAuthLinkError } = useAuth()
+  const { signInWithMagicLink, signInAnonymously, authLinkError, dismissAuthLinkError } = useAuth()
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState(null)
@@ -15,19 +15,6 @@ export default function AuthGate({ onOpenEmailPassword } = {}) {
       await signInAnonymously()
     } catch (err) {
       setStatus(err?.message || 'Failed to continue as guest')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const signInProvider = async (provider) => {
-    setBusy(true)
-    setStatus(null)
-    try {
-      await signInWithOAuth({ provider })
-      // Redirect happens automatically via Supabase OAuth flow.
-    } catch (err) {
-      setStatus(err?.message || `Failed to sign in with ${provider}`)
     } finally {
       setBusy(false)
     }
@@ -114,25 +101,6 @@ export default function AuthGate({ onOpenEmailPassword } = {}) {
             disabled={busy}
           >
             {busy ? 'Sending…' : 'Send magic link'}
-          </button>
-        </div>
-
-        <div className="authGate__oauth">
-          <button
-            type="button"
-            className="authGate__btn authGate__btn--oauth authGate__btn--google"
-            onClick={() => signInProvider('google')}
-            disabled={busy}
-          >
-            Sign in with Google
-          </button>
-          <button
-            type="button"
-            className="authGate__btn authGate__btn--oauth authGate__btn--apple"
-            onClick={() => signInProvider('apple')}
-            disabled={busy}
-          >
-            Sign in with Apple
           </button>
         </div>
 

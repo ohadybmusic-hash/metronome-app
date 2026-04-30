@@ -1,5 +1,6 @@
 import { createContext, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import RecoveryPasswordOverlay from '../components/RecoveryPasswordOverlay.jsx'
+import { getAuthLocalBootstrap } from '../lib/authLocalBootstrap.js'
 import { friendlyAuthLinkError, parseAuthUrlError, stripAuthErrorFromUrl } from '../lib/authUrlErrors'
 import { supabase } from '../lib/supabaseClient'
 
@@ -12,20 +13,6 @@ function isLockError(err) {
 
 async function sleep(ms) {
   await new Promise((r) => window.setTimeout(r, ms))
-}
-
-async function withTimeout(promise, ms) {
-  let t
-  try {
-    return await Promise.race([
-      promise,
-      new Promise((_, reject) => {
-        t = window.setTimeout(() => reject(new Error('timeout')), ms)
-      }),
-    ])
-  } finally {
-    if (t) window.clearTimeout(t)
-  }
 }
 
 /** Same origin Supabase is allowed to redirect to (Site URL + Redirect URLs in dashboard). */
@@ -56,12 +43,14 @@ function urlLooksLikePasswordRecovery() {
 }
 
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(null)
-  const [user, setUser] = useState(null)
+  const [authBoot] = useState(() => getAuthLocalBootstrap())
+  const [session, setSession] = useState(() => (authBoot.hasFastPath ? authBoot.session : null))
+  const [user, setUser] = useState(() => (authBoot.hasFastPath ? authBoot.user : null))
   const [profile, setProfile] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !authBoot.hasFastPath)
   const [passwordRecoveryPending, setPasswordRecoveryPending] = useState(false)
   const [authLinkError, setAuthLinkError] = useState(null)
+  const recoveryFromUrlRef = useRef(urlLooksLikePasswordRecovery())
 
   useLayoutEffect(() => {
     const parsed = parseAuthUrlError()
@@ -119,66 +108,42 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  // Start profile fetch in parallel with Supabase `initialize` / INITIAL_SESSION (fast path only).
+  useLayoutEffect(() => {
+    if (authBoot.hasFastPath && authBoot.user) {
+      void refreshProfile(authBoot.user)
+    }
+  }, [authBoot.hasFastPath, authBoot.user, refreshProfile])
+
   useEffect(() => {
     let cancelled = false
 
-    async function init() {
-      await enqueue(async () => {
-        if (cancelled) return
-        setLoading(true)
-        const recoveryUrlHint = urlLooksLikePasswordRecovery()
-        try {
-          let res
-          try {
-            res = await withTimeout(supabase.auth.getSession(), 3000)
-          } catch (e) {
-            if (isLockError(e)) {
-              await sleep(200)
-              res = await withTimeout(supabase.auth.getSession(), 3000)
-            } else {
-              throw e
-            }
-          }
-          const { data, error } = res || {}
-          if (error) return
-
-          const nextSession = data?.session ?? null
-          const nextUser = nextSession?.user ?? null
-
-          if (!cancelled) {
-            setSession(nextSession)
-            setUser(nextUser)
-          }
-          if (!cancelled && recoveryUrlHint && nextUser) {
-            setPasswordRecoveryPending(true)
-          }
-          if (!cancelled) refreshProfile(nextUser)
-        } catch {
-          // Swallow init errors; the UI should still be usable (AuthGate can retry).
-        } finally {
-          if (!cancelled) setLoading(false)
-        }
-      })
-    }
-
-    const { data: sub } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (event === 'PASSWORD_RECOVERY') {
         setPasswordRecoveryPending(true)
       }
-      await enqueue(async () => {
+      void enqueue(async () => {
+        if (cancelled) return
         const nextUser = nextSession?.user ?? null
-        setSession(nextSession ?? null)
-        setUser(nextUser)
-        setLoading(true)
-        try {
-          refreshProfile(nextUser)
-        } finally {
-          setLoading(false)
+        if (event === 'INITIAL_SESSION') {
+          if (!cancelled) {
+            setSession(nextSession ?? null)
+            setUser(nextUser)
+            setLoading(false)
+            if (recoveryFromUrlRef.current && nextUser) {
+              setPasswordRecoveryPending(true)
+            }
+            refreshProfile(nextUser)
+          }
+          return
         }
+        if (!cancelled) {
+          setSession(nextSession ?? null)
+          setUser(nextUser)
+        }
+        refreshProfile(nextUser)
       })
     })
-
-    init()
 
     return () => {
       cancelled = true
@@ -337,4 +302,3 @@ export function AuthProvider({ children }) {
 }
 
 export { AuthContext }
-

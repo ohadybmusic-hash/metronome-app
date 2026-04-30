@@ -1,284 +1,43 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { supabase } from '../lib/supabaseClient'
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AuthContext } from '../context/AuthProvider.jsx'
-
-const BPM_MIN = 1
-const BPM_MAX = 400
-
-function clampBpm(bpm) {
-  const n = Number(bpm)
-  if (!Number.isFinite(n)) return 120
-  return Math.min(BPM_MAX, Math.max(BPM_MIN, Math.round(n)))
-}
-
-function clampBpmFloat(bpm) {
-  const n = Number(bpm)
-  if (!Number.isFinite(n)) return 120
-  return Math.min(BPM_MAX, Math.max(BPM_MIN, n))
-}
-
-function isIOSOrIPadOS() {
-  if (typeof navigator === 'undefined' || typeof document === 'undefined') return false
-  const ua = navigator.userAgent || ''
-  if (/iP(hone|ad|od)/.test(ua)) return true
-  // iPadOS 13+ can report as Mac + touch
-  if (ua.includes('Mac') && 'ontouchend' in document) return true
-  return false
-}
-
-function isIOSAddToHomeScreenPWA() {
-  if (typeof navigator === 'undefined') return false
-  return 'standalone' in navigator && Boolean(navigator.standalone)
-}
-
-/**
- * Tuner + metronome used separate AudioContext instances; on iOS only the Tuner path (incl. mic)
- * reliably woke audio. A shared context fixes that. StereoPanner has been silent on some WebKit
- * and desktop stacks; the tuner (ref tone / analyser) always hit destination directly, so the
- * metronome used to sound "only after the tuner worked". Mix clicks to destination like the tuner.
- * (Pan UI is left in place; output is mono-center.)
- */
-function getMetronomeOutputNode(ctx, panner) {
-  if (!ctx) return panner
-  return ctx.destination
-}
-
-
-function toUtcDayString(date = new Date()) {
-  const y = date.getUTCFullYear()
-  const m = String(date.getUTCMonth() + 1).padStart(2, '0')
-  const d = String(date.getUTCDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-function addUtcDays(dayStr, deltaDays) {
-  const m = String(dayStr || '').match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (!m) return null
-  const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])))
-  dt.setUTCDate(dt.getUTCDate() + Number(deltaDays || 0))
-  return toUtcDayString(dt)
-}
-
-/**
- * Seconds Per Beat = 60 / BPM
- * (Here, "beat" means a quarter note; other denominators scale from that.)
- */
-function secondsPerQuarter(bpm) {
-  return 60 / bpm
-}
-
-function getMeter(timeSignature) {
-  switch (timeSignature) {
-    case '2/4':
-      return { numerator: 2, denominator: 4, accentPulses: new Set([0]) }
-    case '3/4':
-      return { numerator: 3, denominator: 4, accentPulses: new Set([0]) }
-    case '5/4':
-      return { numerator: 5, denominator: 4, accentPulses: new Set([0, 3]) } // 3+2
-    case '6/8':
-      return { numerator: 6, denominator: 8, accentPulses: new Set([0, 3]) } // 3+3
-    case '9/8':
-      return { numerator: 9, denominator: 8, accentPulses: new Set([0, 3, 6]) } // 3+3+3
-    case '12/8':
-      return { numerator: 12, denominator: 8, accentPulses: new Set([0, 3, 6, 9]) } // 3+3+3+3
-    case '3/8':
-      return { numerator: 3, denominator: 8, accentPulses: new Set([0]) }
-    case '5/8':
-      return { numerator: 5, denominator: 8, accentPulses: new Set([0, 2]) } // 2+3
-    case '7/8':
-      return { numerator: 7, denominator: 8, accentPulses: new Set([0, 2, 4]) } // 2+2+3
-    case '4/4':
-    default:
-      return { numerator: 4, denominator: 4, accentPulses: new Set([0]) }
-  }
-}
-
-function getSubdivisionFactor(subdivision) {
-  switch (subdivision) {
-    case 'eighth':
-      return 2
-    case 'triplet':
-      return 3
-    case 'sixteenth':
-      return 4
-    case 'quarter':
-    default:
-      return 1
-  }
-}
-
-function createBeepAt(ctx, when, output, { frequency, duration, volume }) {
-  const osc = ctx.createOscillator()
-  const gain = ctx.createGain()
-
-  osc.type = 'sine'
-  osc.frequency.setValueAtTime(frequency, when)
-
-  const attack = 0.002
-  const release = Math.max(0.004, duration - attack)
-
-  gain.gain.setValueAtTime(0.0001, when)
-  gain.gain.exponentialRampToValueAtTime(volume, when + attack)
-  gain.gain.exponentialRampToValueAtTime(0.0001, when + attack + release)
-
-  osc.connect(gain)
-  gain.connect(output)
-
-  osc.start(when)
-  osc.stop(when + duration + 0.02)
-}
-
-function createWoodblockAt(ctx, when, output, { frequency, volume }) {
-  const osc = ctx.createOscillator()
-  const gain = ctx.createGain()
-  const filter = ctx.createBiquadFilter()
-
-  osc.type = 'square'
-  osc.frequency.setValueAtTime(frequency, when)
-
-  filter.type = 'bandpass'
-  filter.frequency.setValueAtTime(Math.max(300, frequency), when)
-  filter.Q.setValueAtTime(10, when)
-
-  const attack = 0.001
-  const decay = 0.03
-
-  gain.gain.setValueAtTime(0.0001, when)
-  gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, volume), when + attack)
-  gain.gain.exponentialRampToValueAtTime(0.0001, when + attack + decay)
-
-  osc.connect(filter)
-  filter.connect(gain)
-  gain.connect(output)
-
-  osc.start(when)
-  osc.stop(when + attack + decay + 0.02)
-}
-
-/**
- * Plays a voice buffer on the Web Audio clock. If the clip is longer than the beat slot, speeds it up
- * (capped) so the next downbeat is not muddied; if still too long, hard-stops at the slot end.
- * @param {number} [opts.maxSlotSeconds] — time until the next count at the same metrical level (usually `secondsPerPulse`)
- */
-function createVoiceAt(ctx, when, output, buffer, { volume, maxSlotSeconds } = {}) {
-  if (!buffer) return
-  const src = ctx.createBufferSource()
-  const gain = ctx.createGain()
-  src.buffer = buffer
-  const dur = buffer.duration
-  let wall = dur
-  const cap = maxSlotSeconds != null && maxSlotSeconds > 0.02 ? maxSlotSeconds * 0.9 : null
-  if (cap != null && dur > cap) {
-    const r = Math.min(2.5, dur / cap)
-    src.playbackRate.value = r
-    // Even at max playback rate, the clip may still span past the next beat; never exceed the slot.
-    wall = Math.min(dur / r, cap)
-  } else {
-    src.playbackRate.value = 1
-  }
-  gain.gain.setValueAtTime(volume, when)
-  src.connect(gain)
-  gain.connect(output)
-  src.start(when)
-  src.stop(when + wall + 0.005)
-}
-
-/** TTS for counts: rate scales with tempo so the next `cancel()`+`speak()` does not clip mid-syllable as often. */
-function scheduleCountSpeech(ctx, when, text, { volume, pitch, slotSeconds, treatAsLongSyllable } = {}) {
-  if (typeof window === 'undefined' || !window.speechSynthesis) return
-  const delayMs = Math.max(0, (when - ctx.currentTime) * 1000)
-  const slot = Math.max(0.08, Number(slotSeconds) || 0.25)
-  const target = treatAsLongSyllable ? 0.36 : 0.26
-  const rate = Math.min(2.2, Math.max(0.9, target / slot))
-  window.setTimeout(() => {
-    try {
-      if (ctx.state === 'closed') return
-    } catch {
-      return
-    }
-    const u = new SpeechSynthesisUtterance(text)
-    u.rate = rate
-    u.pitch = pitch ?? 1.0
-    u.volume = volume ?? 0.95
-    window.speechSynthesis.cancel()
-    window.speechSynthesis.speak(u)
-  }, delayMs)
-}
-
-function defaultBeatAccents(meter) {
-  const arr = Array.from({ length: meter.numerator }, () => 'NORMAL')
-  if (arr.length) arr[0] = 'ACCENT3'
-  return arr
-}
-
-function normalizeBeatAccents(meter, maybeArr) {
-  const allowed = new Set(['ACCENT3', 'ACCENT2', 'ACCENT1', 'NORMAL', 'MUTE'])
-  let base = Array.isArray(maybeArr) ? maybeArr : []
-
-  // Backward-compat / bug-migration:
-  // If stored accents look "shifted" (ACCENT on beat 2, beat 1 NORMAL, rest NORMAL),
-  // correct it back to ACCENT on beat 1.
-  try {
-    if (base.length >= 2) {
-      const b0 = base[0]
-      const b1 = base[1]
-      const rest = base.slice(2)
-      const restAllNormal = rest.every((x) => x === 'NORMAL' || x == null)
-      if (b0 === 'NORMAL' && b1 === 'ACCENT' && restAllNormal) {
-        base = ['ACCENT3', 'NORMAL', ...rest]
-      }
-    }
-  } catch {
-    // ignore
-  }
-
-  const next = Array.from({ length: meter.numerator }, (_, i) => {
-    const v = base[i]
-    // Beat 1 should be accented by default unless explicitly set otherwise.
-    const fallback = i === 0 ? 'ACCENT3' : 'NORMAL'
-    // Migrate old labels:
-    if (v === 'ACCENT') return 'ACCENT3'
-    if (v === 'SOFT') return 'ACCENT1'
-    return allowed.has(v) ? v : fallback
-  })
-
-  // If the array looks untouched / defaulted (all NORMAL), ensure beat 1 is ACCENT.
-  if (next.length && next[0] === 'NORMAL') {
-    const anyOther = next.slice(1).some((x) => x !== 'NORMAL')
-    if (!anyOther) next[0] = 'ACCENT3'
-  }
-  return next
-}
-
-function getAccentMultiplier(level) {
-  switch (level) {
-    case 'MUTE':
-      return 0
-    case 'ACCENT1':
-      return 0.75
-    case 'ACCENT2':
-      return 1.05
-    case 'ACCENT3':
-      return 1.25
-    case 'NORMAL':
-    default:
-      return 1.0
-  }
-}
-
-function getAccentTimbre(level) {
-  switch (level) {
-    case 'ACCENT3':
-      return { kind: 'wood', freq: 2350, dur: 0.032 }
-    case 'ACCENT2':
-      return { kind: 'wood', freq: 2000, dur: 0.03 }
-    case 'ACCENT1':
-      return { kind: 'beep', freq: 980, dur: 0.028 }
-    case 'NORMAL':
-    default:
-      return { kind: 'beep', freq: 820, dur: 0.028 }
-  }
-}
+import {
+  clampBpm,
+  clampBpmFloat,
+  defaultBeatAccents,
+  getMeter,
+  normalizeBeatAccents,
+  secondsPerQuarter,
+} from '../lib/metronome/engine.js'
+import {
+  getBootstrapStateForGuest,
+  getBootstrapStateFromUserDataContent,
+} from '../lib/metronome/metronomeBootstrapState.js'
+import { writeGuestMetronomeData } from '../lib/metronome/guestData.js'
+import { upsertMetronomeUserData } from '../lib/metronome/persistUserData.js'
+import { scheduleMetronomePulse } from '../lib/metronome/schedulePulse.js'
+import { runMetronomeSchedulerTick } from '../lib/metronome/runMetronomeSchedulerTick.js'
+import { fetchUserMetronomeDataRow } from '../lib/metronome/fetchUserMetronomeData.js'
+import { readMetronomeBootstrapFromUserDataCache, writeUserDataContentCache } from '../lib/metronome/userDataLocalCache.js'
+import { bindMetronomeMediaSession } from '../lib/metronome/metronomeMediaSession.js'
+import { runMetronomeStop } from '../lib/metronome/runMetronomeStop.js'
+import { buildMetronomeHookReturn } from '../lib/metronome/metronomeHookReturn.js'
+import { ensureMetronomeCountSamples, loadMetronomeVoiceNumberWavs } from '../lib/metronome/metronomeSampleBuffers.js'
+import {
+  applyMetronomeTrainerConfig,
+  startMetronomeTrainerRun,
+  stopMetronomeTrainerRun,
+} from '../lib/metronome/metronomeTrainer.js'
+import { startMetronomeFromUserGesture } from '../lib/metronome/startMetronomeFromUserGesture.js'
+import {
+  ensureMetronomeAudioContext,
+  runEnsureMetronomeUserGestureAudio,
+} from '../lib/metronome/userGestureAudio.js'
+import { normalizeExerciseProgressPayload } from '../lib/metronome/userDataPayload.js'
+import { userHasVisiblePracticeSheetLibrary } from '../lib/practicePdfCategories.js'
+import { useMetronomeAudioUnmount } from './useMetronomeAudioUnmount.js'
+import { useMetronomeRefSync } from './useMetronomeRefSync.js'
+import { useMetronomeInterruptionResync } from './useMetronomeInterruptionResync.js'
+import { useMetronomeScreenWakeLock } from './useMetronomeScreenWakeLock.js'
 
 /**
  * Web Audio metronome with lookahead scheduling.
@@ -313,7 +72,12 @@ export function useMetronome(options = {}) {
 
   const synthApplierRef = synthApplierRefOption ?? { current: null }
   const exerciseProgressRef = exerciseProgressRefOption ?? {
-    current: { entries: [], customExerciseNames: [], sheetsByExercise: {} },
+    current: {
+      entries: [],
+      customExerciseNames: [],
+      sheetsByExercise: {},
+      customExercisePlacements: {},
+    },
   }
 
   const [bpm, _setBpm] = useState(() => clampBpm(initialBpm))
@@ -356,11 +120,12 @@ export function useMetronome(options = {}) {
 
   const auth = useContext(AuthContext)
   const authedUserId = auth?.user?.id ?? null
+  const authedEmail = auth?.user?.email ?? null
+  const practiceSheetLibraryAccess = useMemo(
+    () => userHasVisiblePracticeSheetLibrary(authedEmail),
+    [authedEmail],
+  )
   const isAnonymous = Boolean(auth?.user?.is_anonymous)
-
-  const STORAGE_SONGS = 'metronome.songs.v1'
-  const STORAGE_SETLISTS = 'metronome.setlists.v1'
-  const STORAGE_PREFS = 'metronome.prefs.v1'
 
   const [songs, setSongs] = useState([])
   const [setlists, setSetlists] = useState([])
@@ -471,85 +236,39 @@ export function useMetronome(options = {}) {
     lastAppliedAtBar: null,
   })
 
-  useEffect(() => {
-    bpmRef.current = bpm
-  }, [bpm])
-
-  useEffect(() => {
-    meterRef.current = getMeter(timeSignature)
-  }, [timeSignature])
-
-  useEffect(() => {
-    subdivisionRef.current = subdivision
-  }, [subdivision])
-
-  useEffect(() => {
-    soundRef.current = sound
-  }, [sound])
-
-  useEffect(() => {
-    beatAccentsRef.current = beatAccents
-  }, [beatAccents])
-
-  useEffect(() => {
-    hapticsEnabledRef.current = hapticsEnabled
-  }, [hapticsEnabled])
-
-  useEffect(() => {
-    internalClockRef.current.enabled = internalClockEnabled
-  }, [internalClockEnabled])
-
-  useEffect(() => {
-    internalClockRef.current.playBars = Math.max(1, Math.floor(Number(internalClockPlayBars) || 1))
-  }, [internalClockPlayBars])
-
-  useEffect(() => {
-    internalClockRef.current.muteBars = Math.max(0, Math.floor(Number(internalClockMuteBars) || 0))
-  }, [internalClockMuteBars])
-
-  useEffect(() => {
-    internalClockRef.current.isMuted = internalClockIsMuted
-  }, [internalClockIsMuted])
-
-  useEffect(() => {
-    internalClockRef.current.barsInPhase = internalClockBarsInPhase
-  }, [internalClockBarsInPhase])
-
-  useEffect(() => {
-    internalClockRef.current.introEnabled = Boolean(internalClockIntroEnabled)
-  }, [internalClockIntroEnabled])
-
-  useEffect(() => {
-    automatorRef.current.enabled = Boolean(automatorEnabled)
-  }, [automatorEnabled])
-
-  useEffect(() => {
-    automatorRef.current.startBpm = clampBpmFloat(automatorStartBpm)
-  }, [automatorStartBpm])
-
-  useEffect(() => {
-    automatorRef.current.targetBpm = clampBpmFloat(automatorTargetBpm)
-  }, [automatorTargetBpm])
-
-  useEffect(() => {
-    automatorRef.current.increment = clampBpmFloat(automatorIncrementBpm || 1)
-  }, [automatorIncrementBpm])
-
-  useEffect(() => {
-    automatorRef.current.everyBars = Math.max(1, Math.floor(Number(automatorChangeEveryBars) || 1))
-  }, [automatorChangeEveryBars])
-
-  useEffect(() => {
-    polyRef.current.enabled = Boolean(polyrhythmEnabled)
-  }, [polyrhythmEnabled])
-
-  useEffect(() => {
-    polyRef.current.mainBeats = Math.max(1, Math.floor(Number(polyrhythmMainBeats) || 1))
-  }, [polyrhythmMainBeats])
-
-  useEffect(() => {
-    polyRef.current.polyBeats = Math.max(1, Math.floor(Number(polyrhythmPolyBeats) || 1))
-  }, [polyrhythmPolyBeats])
+  useMetronomeRefSync({
+    bpm,
+    bpmRef,
+    timeSignature,
+    meterRef,
+    subdivision,
+    subdivisionRef,
+    sound,
+    soundRef,
+    beatAccents,
+    beatAccentsRef,
+    hapticsEnabled,
+    hapticsEnabledRef,
+    internalClockEnabled,
+    internalClockPlayBars,
+    internalClockMuteBars,
+    internalClockIsMuted,
+    internalClockBarsInPhase,
+    internalClockIntroEnabled,
+    internalClockRef,
+    automatorEnabled,
+    automatorStartBpm,
+    automatorTargetBpm,
+    automatorIncrementBpm,
+    automatorChangeEveryBars,
+    automatorRef,
+    polyrhythmEnabled,
+    polyrhythmMainBeats,
+    polyrhythmPolyBeats,
+    polyRef,
+    isPlaying,
+    isPlayingRef,
+  })
 
   const setTimeSignature = useCallback((next) => {
     _setTimeSignature(next)
@@ -567,10 +286,6 @@ export function useMetronome(options = {}) {
     const m = meterRef.current
     setBeatAccents(normalizeBeatAccents(m, nextAccents))
   }, [])
-
-  useEffect(() => {
-    isPlayingRef.current = isPlaying
-  }, [isPlaying])
 
   const resyncSchedulingNow = useCallback(() => {
     const ctx = ctxRef.current
@@ -598,133 +313,20 @@ export function useMetronome(options = {}) {
     [applyBpm],
   )
 
-  const ensureContext = useCallback(() => {
-    if (typeof getAudioContextOption === 'function') {
-      const ext = getAudioContextOption()
-      if (ext) {
-        if (ctxRef.current && ctxRef.current !== ext) {
-          pannerRef.current = null
-          audioPrimedForCtxRef.current = null
-        }
-        ctxRef.current = ext
-      } else if (!ctxRef.current) {
-        const AudioContextCtor = window.AudioContext || window.webkitAudioContext
-        ctxRef.current = new AudioContextCtor()
-        audioPrimedForCtxRef.current = null
-      }
-    } else if (!ctxRef.current) {
-      const AudioContextCtor = window.AudioContext || window.webkitAudioContext
-      ctxRef.current = new AudioContextCtor()
-      audioPrimedForCtxRef.current = null
-    }
+  const ensureContext = useCallback(
+    () => ensureMetronomeAudioContext(getAudioContextOption, ctxRef, pannerRef, audioPrimedForCtxRef),
+    [getAudioContextOption],
+  )
 
-    if (ctxRef.current && !pannerRef.current) {
-      const c = ctxRef.current
-      const p = c.createStereoPanner()
-      p.pan.setValueAtTime(0, c.currentTime)
-      p.connect(c.destination)
-      pannerRef.current = p
-    }
-
-    // Important: initiate resume synchronously (don't await) so it counts as a user gesture.
-    // Some mobile browsers will remain silent if resume is awaited from an async chain.
-    if (ctxRef.current && ctxRef.current.state === 'suspended') {
-      try {
-        ctxRef.current.resume?.().catch?.(() => {})
-      } catch {
-        // ignore
-      }
-    }
-
-    return ctxRef.current
-  }, [getAudioContextOption])
-
-  // Inaudible buffer through the *same* mix bus as clicks — iOS / Safari (incl. “Add to Home
-  // Screen”) often require a BufferSource to start(0) in the *same* synchronous turn as
-  // resume/touch, or the graph stays inaudible. connect() to `destination` only was flaky next to
-  // a StereoPanner path. True 0 gain is sometimes elided; other platforms use one prime per ctx.
-  const primeAudioGraph = useCallback((ctx) => {
-    if (!ctx) return
-    if (audioPrimedForCtxRef.current === ctx) return
-    audioPrimedForCtxRef.current = ctx
-    try {
-      const out = getMetronomeOutputNode(ctx, pannerRef.current)
-      const n = Math.max(128, Math.floor((ctx.sampleRate || 48000) * 0.002))
-      const buffer = ctx.createBuffer(1, n, ctx.sampleRate)
-      const src = ctx.createBufferSource()
-      src.buffer = buffer
-      const g = ctx.createGain()
-      g.gain.value = 0.0001
-      src.connect(g)
-      g.connect(out)
-      src.start(0)
-    } catch {
-      // ignore
-    }
-  }, [])
-
-  // Every call: iOS can drop output if the system never saw a non-zero node this gesture.
-  const iosInaudibleOscKick = useCallback((ctx) => {
-    if (!ctx) return
-    try {
-      const out = getMetronomeOutputNode(ctx, pannerRef.current)
-      const osc = ctx.createOscillator()
-      const g = ctx.createGain()
-      osc.type = 'sine'
-      const t0 = ctx.currentTime
-      osc.frequency.setValueAtTime(440, t0)
-      g.gain.setValueAtTime(0.0001, t0)
-      osc.connect(g)
-      g.connect(out)
-      osc.start(t0)
-      osc.stop(t0 + 0.03)
-    } catch {
-      // ignore
-    }
-  }, [])
-
-  // Call on pointerup / from start() — must run sync (do not await) inside user gesture.
-  const ensureUserGestureAudio = useCallback(() => {
-    const ctx = ensureContext()
-    if (!ctx) return null
-
-    // iOS: HTMLAudio is critical. Desktop (Chrome/Edge/Saf): pairing silent HTMLAudio + a tiny
-    // graph tick matches what “fixes” the engine after the tuner; do both everywhere.
-    try {
-      let a = html5SilentAudioRef.current
-      if (!a) {
-        a = new Audio()
-        a.preload = 'auto'
-        a.setAttribute('playsinline', 'true')
-        a.setAttribute('webkit-playsinline', 'true')
-        a.src =
-          'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA='
-        html5SilentAudioRef.current = a
-      }
-      a.volume = 0.0001
-      const p = a.play()
-      if (p && typeof p.then === 'function') void p.catch(() => {})
-    } catch {
-      // ignore
-    }
-
-    try {
-      if (ctx.state === 'suspended' || ctx.state === 'interrupted') void ctx.resume()
-    } catch {
-      // ignore
-    }
-
-    primeAudioGraph(ctx)
-    iosInaudibleOscKick(ctx)
-
-    try {
-      if (ctx.state === 'suspended' || ctx.state === 'interrupted') void ctx.resume()
-    } catch {
-      // ignore
-    }
-
-    return ctx
-  }, [ensureContext, iosInaudibleOscKick, primeAudioGraph])
+  const ensureUserGestureAudio = useCallback(
+    () =>
+      runEnsureMetronomeUserGestureAudio(ensureContext, {
+        pannerRef,
+        audioPrimedForCtxRef,
+        html5SilentAudioRef,
+      }),
+    [ensureContext],
+  )
 
   useEffect(() => {
     const ctx = ctxRef.current
@@ -740,68 +342,12 @@ export function useMetronome(options = {}) {
 
   const ensureCountSamples = useCallback(async () => {
     const ctx = ensureContext()
-    if (countBuffersRef.current.status === 'ready') return
-    if (countBuffersRef.current.status === 'loading') return
-    countBuffersRef.current.status = 'loading'
-
-    try {
-      const sr = ctx.sampleRate || 48000
-      const dur = 0.22
-      const len = Math.max(1, Math.floor(sr * dur))
-
-      const make = (seed) => {
-        const buf = ctx.createBuffer(1, len, sr)
-        const ch = buf.getChannelData(0)
-        for (let i = 0; i < len; i += 1) {
-          const t = i / sr
-          const env = Math.exp(-t * 18) // short decay
-          const f0 = 190 + seed * 40
-          const a =
-            Math.sin(2 * Math.PI * f0 * t) * 0.55 +
-            Math.sin(2 * Math.PI * (f0 * 2.1) * t) * 0.25 +
-            Math.sin(2 * Math.PI * (f0 * 3.2) * t) * 0.12
-          // Add a little transient noise for consonant feel.
-          const n = (Math.random() * 2 - 1) * Math.exp(-t * 70) * 0.08
-          ch[i] = (a + n) * env
-        }
-        return buf
-      }
-
-      countBuffersRef.current = {
-        status: 'ready',
-        buffers: {
-          1: make(1), // "One"
-          2: make(2), // "Two"
-          3: make(3), // "Three"
-          4: make(4), // "Four"
-        },
-      }
-    } catch {
-      countBuffersRef.current = { status: 'error', buffers: {} }
-    }
+    await ensureMetronomeCountSamples(ctx, countBuffersRef)
   }, [ensureContext])
 
   const loadVoiceSamples = useCallback(async () => {
     const ctx = ensureContext()
-    if (voiceBuffersRef.current.status === 'loading') return
-    if (voiceBuffersRef.current.status === 'ready') return
-
-    voiceBuffersRef.current.status = 'loading'
-    const buffers = {}
-    const max = 16
-    try {
-      for (let i = 1; i <= max; i += 1) {
-        const res = await fetch(`/voice/${i}.wav`)
-        if (!res.ok) continue
-        const arr = await res.arrayBuffer()
-        // Safari needs a copy sometimes; decoding handles it.
-        const buf = await ctx.decodeAudioData(arr)
-        buffers[i] = buf
-      }
-      voiceBuffersRef.current = { status: 'ready', buffers }
-    } catch {
-      voiceBuffersRef.current = { status: 'error', buffers: {} }
-    }
+    await loadMetronomeVoiceNumberWavs(ctx, voiceBuffersRef)
   }, [ensureContext])
 
   const setBeatAccent = useCallback((beatIndex, level) => {
@@ -827,249 +373,55 @@ export function useMetronome(options = {}) {
   }, [])
 
   const schedulePulse = useCallback((ctx, pulseStartTime, pulseIndex, meter) => {
-    const output = getMetronomeOutputNode(ctx, pannerRef.current)
-    const gapMuted = internalClockRef.current.enabled && internalClockRef.current.isMuted
-
-    const spq = secondsPerQuarter(bpmRef.current)
-    const secondsPerPulse = spq * (4 / meter.denominator)
-
-    const factor = getSubdivisionFactor(subdivisionRef.current)
-    const step = secondsPerPulse / factor
-
-    const beatAccentLevel = beatAccentsRef.current[pulseIndex] || (pulseIndex === 0 ? 'ACCENT3' : 'NORMAL')
-    const beatMul = getAccentMultiplier(beatAccentLevel)
-
-    const isAccentBeatByMeter = pulseIndex === 0 || meter.accentPulses.has(pulseIndex)
-    const isVoiceNumbers = soundRef.current === 'voiceNumbers'
-    const isVoiceCount = soundRef.current === 'voiceCount'
-    const whenPrimary = pulseStartTime
-    const pulseNumber = pulseIndex + 1
-    const secondsPerBeat = 60 / bpmRef.current
-
-    for (let i = 0; i < factor; i += 1) {
-      const when = pulseStartTime + i * step
-      const isPrimary = i === 0
-      const isDownbeat = isPrimary && isAccentBeatByMeter
-      const isMeasureDownbeat = isPrimary && pulseIndex === 0
-      const isSubdivisionPulse = i !== 0
-
-      // Notify pulse listeners for visual sync (includes subdivisions).
-      for (const cb of pulseListenersRef.current) {
-        try {
-          cb({
-            when,
-            pulseIndex,
-            pulseNumber,
-            subIndex: i,
-            subCount: factor,
-            isSubdivision: isSubdivisionPulse,
-            isMeasureDownbeat,
-            bpm: bpmRef.current,
-            secondsPerBeat,
-            timeSignature: `${meter.numerator}/${meter.denominator}`,
-            subdivision: subdivisionRef.current,
-            gapMuted,
-          })
-        } catch {
-          // ignore listener errors
-        }
-      }
-
-      // Haptics: one pulse per primary subdivision (not every 16th); downbeat = double pattern.
-      if (
-        i === 0 &&
-        !gapMuted &&
-        hapticsEnabledRef.current &&
-        typeof navigator !== 'undefined' &&
-        'vibrate' in navigator
-      ) {
-        const nowAudio = ctx.currentTime
-        const delayMs = Math.max(0, (when - nowAudio) * 1000)
-        const pattern = isMeasureDownbeat ? [50, 40, 50] : [50]
-        window.setTimeout(() => {
-          try {
-            navigator.vibrate(pattern)
-          } catch {
-            // ignore
-          }
-        }, delayMs)
-      }
-
-      if (isVoiceNumbers) {
-        if (i !== 0) continue
-        if (gapMuted) continue
-        const n = pulseIndex + 1
-        const buf = voiceBuffersRef.current.buffers?.[n]
-        const countSlot = secondsPerPulse
-        if (buf) {
-          createVoiceAt(ctx, when, output, buf, {
-            volume: isDownbeat ? 1 : 0.88,
-            maxSlotSeconds: countSlot,
-          })
-        } else {
-          const twoDigit = n >= 10
-          scheduleCountSpeech(ctx, when, String(n), {
-            volume: isDownbeat ? 1.0 : 0.9,
-            pitch: 1.0,
-            slotSeconds: countSlot,
-            treatAsLongSyllable: twoDigit,
-          })
-        }
-        continue
-      }
-
-      if (isVoiceCount) {
-        if (i !== 0) continue
-        if (gapMuted) continue
-        // Always play "One" on downbeat (beat 1 of bar), even in odd meters.
-        const beatNum = pulseIndex + 1
-        const sampleN = beatNum === 1 ? 1 : beatNum >= 2 && beatNum <= 4 ? beatNum : null
-        const buf = sampleN ? countBuffersRef.current.buffers?.[sampleN] : null
-        const countSlot = secondsPerPulse
-        if (buf) {
-          createVoiceAt(ctx, when, output, buf, {
-            volume: beatNum === 1 ? 1 : 0.92,
-            maxSlotSeconds: countSlot,
-          })
-        } else {
-          const text = beatNum === 1 ? 'One' : String(beatNum)
-          scheduleCountSpeech(ctx, when, text, {
-            volume: beatNum === 1 ? 1.0 : 0.9,
-            pitch: 1.1,
-            slotSeconds: countSlot,
-            treatAsLongSyllable: beatNum === 1 || beatNum >= 10,
-          })
-        }
-        continue
-      }
-
-      if (gapMuted) continue
-      const mul = isPrimary ? beatMul : 1.0
-      if (mul <= 0) continue
-
-      const timbre = getAccentTimbre(isPrimary ? beatAccentLevel : 'NORMAL')
-      const frequency = isDownbeat ? 1200 : timbre.freq
-      // Default: as loud as practical (peaks ~1.0) — short beeps/wood; relative balance via `mul`
-      const baseVolume = isDownbeat ? 0.9 : isPrimary ? 0.75 : 0.52
-      const volume = Math.min(1, baseVolume * mul)
-
-      if (timbre.kind === 'wood') {
-        createWoodblockAt(ctx, when, output, { frequency, volume })
-      } else {
-        createBeepAt(ctx, when, output, {
-          frequency,
-          duration: isPrimary ? timbre.dur : 0.02,
-          volume,
-        })
-      }
-    }
-
-    // Notify listeners once per (primary) beat, using the scheduled audio time.
-    // This is intended for external systems (haptics, lockscreen controls, etc.).
-    for (const cb of beatListenersRef.current) {
-      try {
-        cb({
-          when: whenPrimary,
-          pulseIndex,
-          pulseNumber,
-          isDownbeat: isAccentBeatByMeter,
-          bpm: bpmRef.current,
-          secondsPerBeat,
-          secondsPerPulse,
-          timeSignature: `${meter.numerator}/${meter.denominator}`,
-          subdivision: subdivisionRef.current,
-          sound: soundRef.current,
-          accent: beatAccentLevel,
-          gapMuted,
-        })
-      } catch {
-        // ignore listener errors
-      }
-    }
-  }, [])
-
-  const readGuestData = useCallback(() => {
-    let nextSongs
-    let nextSetlists
-    let nextPrefs
-    try {
-      nextSongs = JSON.parse(localStorage.getItem(STORAGE_SONGS) || '[]')
-    } catch {
-      nextSongs = []
-    }
-    try {
-      nextSetlists = JSON.parse(localStorage.getItem(STORAGE_SETLISTS) || '[]')
-    } catch {
-      nextSetlists = []
-    }
-    try {
-      nextPrefs = JSON.parse(localStorage.getItem(STORAGE_PREFS) || '{}')
-    } catch {
-      nextPrefs = {}
-    }
-    return {
-      songs: Array.isArray(nextSongs) ? nextSongs : [],
-      setlists: Array.isArray(nextSetlists) ? nextSetlists : [],
-      prefs: nextPrefs && typeof nextPrefs === 'object' ? nextPrefs : {},
-    }
-  }, [])
-
-  const persistGuestData = useCallback((nextSongs, nextSetlists, prefs) => {
-    localStorage.setItem(STORAGE_SONGS, JSON.stringify(nextSongs))
-    localStorage.setItem(STORAGE_SETLISTS, JSON.stringify(nextSetlists))
-    localStorage.setItem(STORAGE_PREFS, JSON.stringify(prefs || {}))
+    scheduleMetronomePulse(ctx, pulseStartTime, pulseIndex, meter, {
+      pannerRef,
+      internalClockRef,
+      bpmRef,
+      subdivisionRef,
+      beatAccentsRef,
+      soundRef,
+      pulseListenersRef,
+      beatListenersRef,
+      hapticsEnabledRef,
+      voiceBuffersRef,
+      countBuffersRef,
+    })
   }, [])
 
   const persistAuthedData = useCallback(
     async (nextSongs, nextSetlists) => {
       if (!authedUserId) return
-      const epSnap = exerciseProgressRef?.current
-      const exerciseProgress =
-        epSnap && typeof epSnap === 'object'
-          ? {
-              entries: Array.isArray(epSnap.entries) ? epSnap.entries : [],
-              customExerciseNames: Array.isArray(epSnap.customExerciseNames)
-                ? epSnap.customExerciseNames
-                : [],
-              sheetsByExercise:
-                epSnap.sheetsByExercise && typeof epSnap.sheetsByExercise === 'object'
-                  ? epSnap.sheetsByExercise
-                  : {},
-            }
-          : { entries: [], customExerciseNames: [], sheetsByExercise: {} }
-
-      const payload = {
+      await upsertMetronomeUserData({
+        userId: authedUserId,
         songs: nextSongs,
         setlists: nextSetlists,
-        prefs: {
-          activeSongId,
-          activeSetlistId,
+        activeSongId,
+        activeSetlistId,
+        streakCount,
+        lastPracticeDate,
+        practiceTotals: {
+          totalSeconds: practiceRef.current.totalSeconds,
+          bpmSecondsSum: practiceRef.current.bpmSecondsSum,
         },
-        streak: {
-          streak_count: Math.max(0, Math.floor(Number(streakCount) || 0)),
-          last_practice_date: lastPracticeDate || null,
-        },
-        practice: {
-          total_minutes: practiceRef.current.totalSeconds / 60,
-          average_bpm:
-            practiceRef.current.totalSeconds > 0
-              ? practiceRef.current.bpmSecondsSum / practiceRef.current.totalSeconds
-              : 0,
-        },
-        exerciseProgress,
-        updated_at: new Date().toISOString(),
-      }
-
-      // user_data RLS: rows are scoped to auth.uid(); only pass the signed-in user's id.
-      await supabase.from('user_data').upsert(
-        {
-          user_id: authedUserId,
-          data: payload,
-        },
-        { onConflict: 'user_id' },
-      )
+        exerciseProgressSnapshot: practiceSheetLibraryAccess
+          ? exerciseProgressRef?.current
+          : {
+              entries: [],
+              customExerciseNames: [],
+              sheetsByExercise: {},
+              customExercisePlacements: {},
+            },
+      })
     },
-    [authedUserId],
+    [
+      authedUserId,
+      activeSongId,
+      activeSetlistId,
+      streakCount,
+      lastPracticeDate,
+      exerciseProgressRef,
+      practiceSheetLibraryAccess,
+    ],
   )
 
   const schedulePersist = useCallback(
@@ -1083,73 +435,76 @@ export function useMetronome(options = {}) {
             // If sync fails, keep local state and let the UI continue.
           }
         } else {
-          persistGuestData(nextSongs, nextSetlists, { activeSongId, activeSetlistId })
+          writeGuestMetronomeData(nextSongs, nextSetlists, { activeSongId, activeSetlistId })
         }
       }, 400)
     },
-    [activeSetlistId, activeSongId, authedUserId, persistAuthedData, persistGuestData],
+    [activeSetlistId, activeSongId, authedUserId, persistAuthedData],
   )
 
-  // Load data source when auth state changes (no setState-in-effect rule)
-  useEffect(() => {
+  // Load data when auth changes: guest/cached SWR from localStorage in layout (before first paint), then revalidate.
+  useLayoutEffect(() => {
     let cancelled = false
+    /* eslint-disable react-hooks/set-state-in-effect -- one-shot guest + user_data cache hydration; async fetch state updates are in microtasks */
+    if (!authedUserId) {
+      userDataRowIdRef.current = null
+      const g = getBootstrapStateForGuest()
+      setSongs(g.songs)
+      setSetlists(g.setlists)
+      setActiveSongId(g.activeSongId)
+      setActiveSetlistId(g.activeSetlistId)
+      return
+    }
 
-    async function load() {
-      if (!authedUserId) {
-        userDataRowIdRef.current = null
-        const g = readGuestData()
-        if (!cancelled) {
-          setSongs(g.songs)
-          setSetlists(g.setlists)
-          setActiveSongId(String(g.prefs?.activeSongId || ''))
-          setActiveSetlistId(String(g.prefs?.activeSetlistId || ''))
-        }
-        return
-      }
+    const cached = readMetronomeBootstrapFromUserDataCache(authedUserId)
+    if (cached) {
+      setSongs(cached.songs)
+      setSetlists(cached.setlists)
+      setActiveSongId(cached.activeSongId)
+      setActiveSetlistId(cached.activeSetlistId)
+      setStreakCount(cached.streakCount)
+      setLastPracticeDate(cached.lastPracticeDate)
+      onExerciseProgressLoadedOption?.(
+        practiceSheetLibraryAccess
+          ? normalizeExerciseProgressPayload(cached.exerciseProgressRaw)
+          : normalizeExerciseProgressPayload(null),
+      )
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
 
-      const { data, error } = await supabase.from('user_data').select('*').eq('user_id', authedUserId).maybeSingle()
+    void (async function load() {
+      const { data, error } = await fetchUserMetronomeDataRow(authedUserId)
       if (cancelled) return
       if (error) {
-        onExerciseProgressLoadedOption?.({
-          entries: [],
-          customExerciseNames: [],
-          sheetsByExercise: {},
-        })
+        if (!cached) {
+          onExerciseProgressLoadedOption?.(normalizeExerciseProgressPayload(null))
+        }
         return
       }
 
       userDataRowIdRef.current = data?.user_id ?? null
-      const content = data?.data ?? {}
-      setSongs(Array.isArray(content.songs) ? content.songs : [])
-      setSetlists(Array.isArray(content.setlists) ? content.setlists : [])
-      setActiveSongId(String(content?.prefs?.activeSongId || ''))
-      setActiveSetlistId(String(content?.prefs?.activeSetlistId || ''))
-      setStreakCount(Math.max(0, Math.floor(Number(content?.streak?.streak_count) || 0)))
-      setLastPracticeDate(content?.streak?.last_practice_date || null)
+      const s = getBootstrapStateFromUserDataContent(data?.data)
+      if (data?.data != null) {
+        writeUserDataContentCache(authedUserId, data.data)
+      }
+      setSongs(s.songs)
+      setSetlists(s.setlists)
+      setActiveSongId(s.activeSongId)
+      setActiveSetlistId(s.activeSetlistId)
+      setStreakCount(s.streakCount)
+      setLastPracticeDate(s.lastPracticeDate)
 
-      const ep = content?.exerciseProgress
-      const normalizedExercise =
-        ep && typeof ep === 'object'
-          ? {
-              entries: Array.isArray(ep.entries) ? ep.entries : [],
-              customExerciseNames: Array.isArray(ep.customExerciseNames) ? ep.customExerciseNames : [],
-              sheetsByExercise:
-                ep.sheetsByExercise && typeof ep.sheetsByExercise === 'object' ? ep.sheetsByExercise : {},
-            }
-          : { entries: [], customExerciseNames: [], sheetsByExercise: {} }
-      onExerciseProgressLoadedOption?.(normalizedExercise)
-    }
-
-    // Defer to avoid lint rule "set state in effect" (treated as cascading render).
-    const id = window.setTimeout(() => {
-      load()
-    }, 0)
+      onExerciseProgressLoadedOption?.(
+        practiceSheetLibraryAccess
+          ? normalizeExerciseProgressPayload(s.exerciseProgressRaw)
+          : normalizeExerciseProgressPayload(null),
+      )
+    })()
 
     return () => {
       cancelled = true
-      window.clearTimeout(id)
     }
-  }, [authedUserId, readGuestData, onExerciseProgressLoadedOption])
+  }, [authedUserId, onExerciseProgressLoadedOption, practiceSheetLibraryAccess])
 
   useEffect(() => {
     return () => {
@@ -1159,252 +514,37 @@ export function useMetronome(options = {}) {
   }, [])
 
   const schedulerTick = useCallback(() => {
-    if (!isPlayingRef.current) return
-    const ctx = ctxRef.current
-    if (!ctx) return
-
-    if (ctx.state !== 'running') {
-      try {
-        if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
-          void ctx.resume()
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    const meter = meterRef.current
-    const now = ctx.currentTime
-
-    // Practice history: accumulate time-weighted BPM while "playing"
-    if (practiceRef.current.lastAudioTime != null) {
-      const dt = Math.max(0, now - practiceRef.current.lastAudioTime)
-      if (dt > 0) {
-        practiceRef.current.totalSeconds += dt
-        practiceRef.current.bpmSecondsSum += bpmRef.current * dt
-        setPracticeTotalSeconds(practiceRef.current.totalSeconds)
-        setPracticeAverageBpm(
-          practiceRef.current.totalSeconds > 0
-            ? practiceRef.current.bpmSecondsSum / practiceRef.current.totalSeconds
-            : 0,
-        )
-      }
-    }
-    practiceRef.current.lastAudioTime = now
-
-    const tr = trainerRef.current
-    if (tr.enabled && tr.startedAtAudioTime != null) {
-      if (tr.mode === 'seconds') {
-        const elapsed = Math.max(0, now - tr.startedAtAudioTime)
-        setTrainerElapsedTime(elapsed)
-
-        const everySec = Math.max(0.1, Number(tr.everySeconds) || 0.1)
-        const increment = Math.max(0.5, Number(tr.incrementBpm) || 0.5)
-        const stepsSoFar = Math.floor(elapsed / everySec)
-
-        if (!tr.targetEnabled) {
-          while (tr.lastAppliedStepIndex < stepsSoFar) {
-            tr.lastAppliedStepIndex += 1
-            const next = clampBpmFloat(bpmRef.current + increment)
-            const capped = Math.min(BPM_MAX, next)
-            applyBpm(capped, { resync: true })
-            if (capped >= BPM_MAX) {
-              tr.enabled = false
-              setTrainerEnabled(false)
-              break
-            }
-          }
-        } else {
-          const rawDir = tr.targetBpm - tr.startBpm
-          const dir = rawDir > 0 ? 1 : rawDir < 0 ? -1 : 0
-
-          if (dir === 0) {
-            tr.enabled = false
-            setTrainerEnabled(false)
-          } else {
-            while (tr.lastAppliedStepIndex < stepsSoFar) {
-              tr.lastAppliedStepIndex += 1
-              const rawNext = tr.startBpm + dir * increment * tr.lastAppliedStepIndex
-              const next = dir > 0 ? Math.min(rawNext, tr.targetBpm) : Math.max(rawNext, tr.targetBpm)
-              applyBpm(next, { resync: true })
-              if ((dir > 0 && next >= tr.targetBpm) || (dir < 0 && next <= tr.targetBpm)) {
-                tr.enabled = false
-                setTrainerEnabled(false)
-                break
-              }
-            }
-          }
-        }
-      } else if (tr.mode === 'bars') {
-        setTrainerBarsElapsed(tr.barsElapsed)
-      }
-    }
-
-    const spq = secondsPerQuarter(bpmRef.current)
-    const secondsPerPulse = spq * (4 / meter.denominator)
-
-    while (nextPulseTimeRef.current < now + scheduleAheadSeconds) {
-      const pulseIndex = pulseIndexRef.current
-
-      schedulePulse(ctx, nextPulseTimeRef.current, pulseIndex, meter)
-
-      // Automator: advance on downbeats and apply increments every X bars.
-      if (pulseIndex === 0) {
-        const a = automatorRef.current
-        if (a.enabled) {
-          a.barsElapsed += 1
-          setAutomatorBarsElapsed(a.barsElapsed)
-
-          if (a.startedAtBar == null) {
-            a.startedAtBar = a.barsElapsed
-            a.lastAppliedAtBar = a.barsElapsed
-            applyBpm(a.startBpm, { resync: true })
-          } else {
-            const every = Math.max(1, Math.floor(Number(a.everyBars) || 1))
-            const barsSince = a.barsElapsed - (a.lastAppliedAtBar ?? a.startedAtBar ?? 0)
-            if (barsSince >= every) {
-              const dir = a.targetBpm >= bpmRef.current ? 1 : -1
-              const step = Math.abs(Number(a.increment) || 1)
-              const next = clampBpmFloat(bpmRef.current + dir * step)
-              const done = dir > 0 ? next >= a.targetBpm : next <= a.targetBpm
-              applyBpm(done ? a.targetBpm : next, { resync: true })
-              a.lastAppliedAtBar = a.barsElapsed
-              if (done) {
-                a.enabled = false
-                setAutomatorEnabled(false)
-              }
-            }
-          }
-        } else if (automatorBarsElapsed !== 0) {
-          // Keep UI consistent when disabled.
-          if (automatorRef.current.barsElapsed !== 0) {
-            automatorRef.current.barsElapsed = 0
-            automatorRef.current.startedAtBar = null
-            automatorRef.current.lastAppliedAtBar = null
-            setAutomatorBarsElapsed(0)
-          }
-        }
-      }
-
-      // Internal Clock (Auto-Mute): advance on downbeats.
-      const ic = internalClockRef.current
-      if (ic.enabled && pulseIndex === 0) {
-        // Optional 2-bar count-in before gap pattern starts.
-        if (ic.introRemaining > 0) {
-          ic.introRemaining -= 1
-          ic.isMuted = false
-          ic.barsInPhase = 0
-          setInternalClockIsMuted(false)
-          setInternalClockBarsInPhase(0)
-        } else {
-        const playBars = Math.max(1, Math.floor(Number(ic.playBars) || 1))
-        const muteBars = Math.max(0, Math.floor(Number(ic.muteBars) || 0))
-        const phaseLen = ic.isMuted ? muteBars : playBars
-
-        if (phaseLen === 0) {
-          // If muteBars is 0, avoid getting stuck in a muted phase.
-          if (ic.isMuted) {
-            ic.isMuted = false
-            ic.barsInPhase = 0
-            setInternalClockIsMuted(false)
-            setInternalClockBarsInPhase(0)
-          }
-        } else {
-          ic.barsInPhase += 1
-          setInternalClockBarsInPhase(ic.barsInPhase)
-          if (ic.barsInPhase >= phaseLen) {
-            ic.isMuted = !ic.isMuted
-            ic.barsInPhase = 0
-            setInternalClockIsMuted(ic.isMuted)
-            setInternalClockBarsInPhase(0)
-          }
-        }
-        }
-      }
-
-      const tr2 = trainerRef.current
-      if (tr2.enabled && tr2.startedAtAudioTime != null && tr2.mode === 'bars') {
-        const isDownbeat = pulseIndex === 0
-        if (isDownbeat) {
-          tr2.barsElapsed += 1
-          setTrainerBarsElapsed(tr2.barsElapsed)
-
-          const everyBars = Math.max(1, Math.floor(Number(tr2.everyBars) || 1))
-          const increment = Math.max(0.5, Number(tr2.incrementBpm) || 0.5)
-
-          if (!tr2.targetEnabled) {
-            if (tr2.lastAppliedAtBar == null) {
-              tr2.lastAppliedAtBar = tr2.barsElapsed
-              applyBpm(tr2.startBpm, { resync: true })
-            } else {
-              const barsSince = tr2.barsElapsed - tr2.lastAppliedAtBar
-              if (barsSince >= everyBars) {
-                const next = clampBpmFloat(bpmRef.current + increment)
-                const capped = Math.min(BPM_MAX, next)
-                applyBpm(capped, { resync: true })
-                tr2.lastAppliedAtBar = tr2.barsElapsed
-                if (capped >= BPM_MAX) {
-                  tr2.enabled = false
-                  setTrainerEnabled(false)
-                }
-              }
-            }
-          } else {
-            const rawDir = tr2.targetBpm - tr2.startBpm
-            const dir = rawDir > 0 ? 1 : rawDir < 0 ? -1 : 0
-
-            if (dir === 0) {
-              tr2.enabled = false
-              setTrainerEnabled(false)
-            } else if (tr2.lastAppliedAtBar == null) {
-              tr2.lastAppliedAtBar = tr2.barsElapsed
-              applyBpm(tr2.startBpm, { resync: true })
-            } else {
-              const barsSince = tr2.barsElapsed - tr2.lastAppliedAtBar
-              if (barsSince >= everyBars) {
-                const next = clampBpmFloat(bpmRef.current + dir * increment)
-                const done = dir > 0 ? next >= tr2.targetBpm : next <= tr2.targetBpm
-                applyBpm(done ? tr2.targetBpm : next, { resync: true })
-                tr2.lastAppliedAtBar = tr2.barsElapsed
-                if (done) {
-                  tr2.enabled = false
-                  setTrainerEnabled(false)
-                }
-              }
-            }
-          }
-        }
-      }
-
-      const nextPulse = (pulseIndex + 1) % meter.numerator
-      pulseIndexRef.current = nextPulse
-      setPulse(nextPulse + 1)
-
-      nextPulseTimeRef.current += secondsPerPulse
-    }
-
-    // Polyrhythm: second independent track layered over the main BPM.
-    const poly = polyRef.current
-    if (poly.enabled) {
-      const mainBeats = Math.max(1, Math.floor(Number(poly.mainBeats) || 1))
-      const polyBeats = Math.max(1, Math.floor(Number(poly.polyBeats) || 1))
-      const polyStepSeconds = secondsPerQuarter(bpmRef.current) * (mainBeats / polyBeats)
-
-      while (nextPolyTimeRef.current < now + scheduleAheadSeconds) {
-        const gapMuted = internalClockRef.current.enabled && internalClockRef.current.isMuted
-        if (!gapMuted) {
-          // High-pitched woodblock so it sits above the main click.
-          const output = getMetronomeOutputNode(ctx, pannerRef.current)
-          createWoodblockAt(ctx, nextPolyTimeRef.current, output, {
-            frequency: 2200,
-            volume: 0.55,
-          })
-        }
-        polyIndexRef.current = (polyIndexRef.current + 1) % polyBeats
-        nextPolyTimeRef.current += polyStepSeconds
-      }
-    }
-  }, [applyBpm, scheduleAheadSeconds, schedulePulse])
+    runMetronomeSchedulerTick({
+      isPlayingRef,
+      ctxRef,
+      practiceRef,
+      bpmRef,
+      meterRef,
+      trainerRef,
+      nextPulseTimeRef,
+      pulseIndexRef,
+      automatorRef,
+      internalClockRef,
+      polyRef,
+      nextPolyTimeRef,
+      polyIndexRef,
+      pannerRef,
+      scheduleAheadSeconds,
+      automatorBarsElapsed,
+      applyBpm,
+      schedulePulse,
+      setPracticeTotalSeconds,
+      setPracticeAverageBpm,
+      setTrainerElapsedTime,
+      setTrainerBarsElapsed,
+      setTrainerEnabled,
+      setAutomatorBarsElapsed,
+      setAutomatorEnabled,
+      setInternalClockIsMuted,
+      setInternalClockBarsInPhase,
+      setPulse,
+    })
+  }, [applyBpm, automatorBarsElapsed, scheduleAheadSeconds, schedulePulse])
 
   useEffect(() => {
     schedulerTickRef.current = schedulerTick
@@ -1417,155 +557,43 @@ export function useMetronome(options = {}) {
     // the tuner path awaited resume() so it appeared to "fix" the metronome.
     const ctx = ensureUserGestureAudio()
     if (!ctx) return
-
-    const meter = getMeter(timeSignature)
-    meterRef.current = meter
-    subdivisionRef.current = subdivision
-
-    const output = getMetronomeOutputNode(ctx, pannerRef.current)
-
-    const clearCountInTimers = () => {
-      for (const id of countInRef.current.timeouts) window.clearTimeout(id)
-      countInRef.current.timeouts.clear()
-    }
-
-    const startMain = (atTime) => {
-      // Initialize scheduling from the requested start time.
-      pulseIndexRef.current = 0
-      nextPulseTimeRef.current = Math.max(atTime, ctx.currentTime) + 0.02
-      polyIndexRef.current = 0
-      nextPolyTimeRef.current = Math.max(atTime, ctx.currentTime) + 0.02
-      setPulse(1)
-
-      // Start / resume practice history accumulation for this session run.
-      practiceRef.current.lastAudioTime = Math.max(atTime, ctx.currentTime)
-      practiceSessionRef.current.startedAtAudioTime = Math.max(atTime, ctx.currentTime)
-      practiceSessionRef.current.bpmAtStart = Math.round(bpmRef.current)
-
-      timerIdRef.current = window.setInterval(schedulerTick, lookaheadMs)
-      isPlayingRef.current = true
-      setIsPlaying(true)
-    }
-
-    const run = async () => {
-      // Count-in: 2 bars of a distinct high-pitched woodblock BEFORE starting metronome + visualizers.
-      if (countInEnabled && !countInActive && !countInRef.current.active) {
-        // Cancel any previous stray timers.
-        clearCountInTimers()
-        countInRef.current.active = true
-        setCountInActive(true)
-
-        const beatsPerBar = meter.numerator
-        const totalBeats = beatsPerBar * 2
-        setCountInBeatsRemaining(totalBeats)
-
-        const spq = secondsPerQuarter(bpmRef.current)
-        const secondsPerBeat = spq * (4 / meter.denominator)
-        const startAt = ctx.currentTime + 0.05
-        const woodFreq = 2600
-
-        for (let i = 0; i < totalBeats; i += 1) {
-          const when = startAt + i * secondsPerBeat
-          createWoodblockAt(ctx, when, output, { frequency: woodFreq, volume: 0.7 })
-          const id = window.setTimeout(() => {
-            setCountInBeatsRemaining((prev) => Math.max(0, prev - 1))
-          }, Math.max(0, (when - ctx.currentTime) * 1000))
-          countInRef.current.timeouts.add(id)
-        }
-
-        const endId = window.setTimeout(() => {
-          countInRef.current.active = false
-          clearCountInTimers()
-          setCountInActive(false)
-          setCountInBeatsRemaining(0)
-          startMain(startAt + totalBeats * secondsPerBeat)
-        }, Math.max(0, (startAt + totalBeats * secondsPerBeat - ctx.currentTime) * 1000))
-        countInRef.current.timeouts.add(endId)
-        return
-      }
-
-      pulseIndexRef.current = 0
-      nextPulseTimeRef.current = ctx.currentTime + 0.05
-      polyIndexRef.current = 0
-      nextPolyTimeRef.current = ctx.currentTime + 0.05
-      setPulse(1)
-
-      // Start / resume practice history accumulation for this session run.
-      practiceRef.current.lastAudioTime = ctx.currentTime
-      practiceSessionRef.current.startedAtAudioTime = ctx.currentTime
-      practiceSessionRef.current.bpmAtStart = Math.round(bpmRef.current)
-
-      const tr = trainerRef.current
-      if (tr.enabled) {
-        tr.startedAtAudioTime = ctx.currentTime
-        tr.lastAppliedStepIndex = 0
-        tr.lastAppliedAtBar = null
-        tr.barsElapsed = 0
-        setTrainerElapsedTime(0)
-        setTrainerBarsElapsed(0)
-        applyBpm(tr.startBpm, { resync: true })
-      }
-
-      // If Automator is enabled, (re)initialize at start.
-      if (automatorRef.current.enabled) {
-        automatorRef.current.barsElapsed = 0
-        automatorRef.current.startedAtBar = null
-        automatorRef.current.lastAppliedAtBar = null
-        setAutomatorBarsElapsed(0)
-        applyBpm(automatorRef.current.startBpm, { resync: true })
-      }
-
-      // Start transport before any async decode (fetch/WAV) — those awaits break the Safari
-      // gesture chain and also delay the first beep. Voice mode fills buffers in the background
-      // (schedulePulse falls back to speechSynthesis until ready).
-      timerIdRef.current = window.setInterval(schedulerTick, lookaheadMs)
-      isPlayingRef.current = true
-      setIsPlaying(true)
-
-      if (soundRef.current === 'voiceNumbers' || soundRef.current === 'voiceCount') {
-        void (async () => {
-          if (soundRef.current === 'voiceNumbers') {
-            await loadVoiceSamples()
-          }
-          if (soundRef.current === 'voiceCount') {
-            await ensureCountSamples()
-          }
-          resyncSchedulingNow()
-        })()
-      }
-    }
-
-    const kick = () => {
-      void run()
-    }
-
-    if (ctx.state === 'running') {
-      kick()
-    } else {
-      const p = ctx.resume?.()
-      if (p && typeof p.then === 'function') {
-        void p
-          .then(() => {
-            // iOS WebKit: state may flip in the next frame; re-prime and kick after rAF so the first
-            // scheduled clicks aren’t in a “still suspended / invalid gesture” edge case.
-            requestAnimationFrame(() => {
-              ensureUserGestureAudio()
-              kick()
-            })
-          })
-          .catch(() => {
-            requestAnimationFrame(() => {
-              ensureUserGestureAudio()
-              kick()
-            })
-          })
-      } else {
-        requestAnimationFrame(() => {
-          ensureUserGestureAudio()
-          kick()
-        })
-      }
-    }
+    startMetronomeFromUserGesture({
+      ctx,
+      isPlayingRef,
+      ensureUserGestureAudio,
+      timeSignature,
+      subdivision,
+      meterRef,
+      subdivisionRef,
+      pannerRef,
+      countInRef,
+      countInEnabled,
+      countInActive,
+      bpmRef,
+      pulseIndexRef,
+      nextPulseTimeRef,
+      polyIndexRef,
+      nextPolyTimeRef,
+      setPulse,
+      practiceRef,
+      practiceSessionRef,
+      timerIdRef,
+      schedulerTick,
+      lookaheadMs,
+      setIsPlaying,
+      setCountInActive,
+      setCountInBeatsRemaining,
+      trainerRef,
+      automatorRef,
+      applyBpm,
+      resyncSchedulingNow,
+      soundRef,
+      loadVoiceSamples,
+      ensureCountSamples,
+      setTrainerElapsedTime,
+      setTrainerBarsElapsed,
+      setAutomatorBarsElapsed,
+    })
   }, [
     applyBpm,
     ensureUserGestureAudio,
@@ -1581,113 +609,32 @@ export function useMetronome(options = {}) {
   ])
 
   const stop = useCallback(() => {
-    // Cancel count-in if active.
-    if (countInRef.current.active) {
-      for (const id of countInRef.current.timeouts) window.clearTimeout(id)
-      countInRef.current.timeouts.clear()
-      countInRef.current.active = false
-      setCountInActive(false)
-      setCountInBeatsRemaining(0)
-    }
-    if (timerIdRef.current) {
-      window.clearInterval(timerIdRef.current)
-      timerIdRef.current = null
-    }
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      try {
-        window.speechSynthesis.cancel()
-      } catch {
-        // ignore
-      }
-    }
-
-    // Practice Log: record a session on stop (authed only).
-    const ctx = ctxRef.current
-    const startedAt = practiceSessionRef.current.startedAtAudioTime
-    if (authedUserId && ctx && startedAt != null) {
-      const durationSeconds = Math.max(0, Math.round(ctx.currentTime - startedAt))
-      if (durationSeconds > 0) {
-        const bpmNow = Math.round(bpmRef.current)
-        ;(async () => {
-          try {
-            await supabase.from('practice_sessions').insert({
-              user_id: authedUserId,
-              bpm: bpmNow,
-              duration_seconds: durationSeconds,
-            })
-            // Daily streak update (UTC days).
-            const today = toUtcDayString(new Date())
-            const yesterday = addUtcDays(today, -1)
-            setStreakCount((prev) => {
-              const last = lastPracticeDate
-              if (last === today) return prev
-              if (last === yesterday) return prev + 1
-              return 1
-            })
-            setLastPracticeDate((prev) => (prev === today ? prev : today))
-            if (isAnonymous) {
-              setGuestSyncPrompt('Create a permanent account to sync your data across devices.')
-            }
-          } catch {
-            // ignore logging failures
-          }
-        })()
-      }
-    }
-    practiceSessionRef.current.startedAtAudioTime = null
-    practiceSessionRef.current.bpmAtStart = null
-
-    isPlayingRef.current = false
-    setIsPlaying(false)
-    setPulse(0)
-    pulseIndexRef.current = 0
-    polyIndexRef.current = 0
-
-    // Stop practice accumulation (but keep totals for the session).
-    practiceRef.current.lastAudioTime = null
+    runMetronomeStop({
+      countInRef,
+      setCountInActive,
+      setCountInBeatsRemaining,
+      timerIdRef,
+      ctxRef,
+      practiceSessionRef,
+      authedUserId,
+      bpmRef,
+      lastPracticeDate,
+      setStreakCount,
+      setLastPracticeDate,
+      isAnonymous,
+      setGuestSyncPrompt,
+      isPlayingRef,
+      setIsPlaying,
+      setPulse,
+      pulseIndexRef,
+      polyIndexRef,
+      practiceRef,
+    })
   }, [])
 
   // Media Session: show BPM on lock screen + allow play/pause controls.
   useEffect(() => {
-    const ms = typeof navigator !== 'undefined' ? navigator.mediaSession : null
-    if (!ms) return
-
-    try {
-      ms.metadata = new MediaMetadata({
-        title: 'Metronome',
-        artist: `${Math.round(bpm)} BPM`,
-        album: 'Practice',
-      })
-    } catch {
-      // ignore
-    }
-
-    const onPlay = () => start()
-    const onPause = () => stop()
-
-    try {
-      ms.setActionHandler('play', onPlay)
-      ms.setActionHandler('pause', onPause)
-      ms.setActionHandler('stop', onPause)
-    } catch {
-      // ignore
-    }
-
-    try {
-      ms.playbackState = isPlaying ? 'playing' : 'paused'
-    } catch {
-      // ignore
-    }
-
-    return () => {
-      try {
-        ms.setActionHandler('play', null)
-        ms.setActionHandler('pause', null)
-        ms.setActionHandler('stop', null)
-      } catch {
-        // ignore
-      }
-    }
+    return bindMetronomeMediaSession(bpm, isPlaying, start, stop)
   }, [bpm, isPlaying, start, stop])
 
   // Periodically sync practice stats while logged in (throttled).
@@ -1708,54 +655,7 @@ export function useMetronome(options = {}) {
     else start()
   }, [start, stop])
 
-  // Wake Lock: keep screen awake while playing (best effort).
-  useEffect(() => {
-    let cancelled = false
-    let sentinel = null
-
-    async function request() {
-      if (typeof navigator === 'undefined') return
-      if (!('wakeLock' in navigator)) return
-      try {
-        sentinel = await navigator.wakeLock.request('screen')
-        if (cancelled) {
-          await sentinel.release()
-          sentinel = null
-          return
-        }
-        sentinel.addEventListener?.('release', () => {
-          // noop; best-effort
-        })
-      } catch {
-        // ignore (unsupported / denied / not in secure context)
-      }
-    }
-
-    async function release() {
-      try {
-        await sentinel?.release?.()
-      } catch {
-        // ignore
-      } finally {
-        sentinel = null
-      }
-    }
-
-    if (isPlaying) request()
-    else release()
-
-    const onVis = () => {
-      if (!isPlaying) return
-      if (document.visibilityState === 'visible') request()
-    }
-    document.addEventListener('visibilitychange', onVis)
-
-    return () => {
-      cancelled = true
-      document.removeEventListener('visibilitychange', onVis)
-      release()
-    }
-  }, [isPlaying])
+  useMetronomeScreenWakeLock(isPlaying)
 
   const syncAudioAfterInterruption = useCallback(() => {
     ensureUserGestureAudio()
@@ -1785,50 +685,17 @@ export function useMetronome(options = {}) {
     }
   }, [ensureUserGestureAudio, resyncSchedulingNow])
 
-  useEffect(() => {
-    if (typeof document === 'undefined' || typeof window === 'undefined') return
+  useMetronomeInterruptionResync(syncAudioAfterInterruption)
 
-    const onVis = () => {
-      if (document.visibilityState === 'visible') syncAudioAfterInterruption()
-    }
-    const onPageShow = (e) => {
-      if (e.persisted) syncAudioAfterInterruption()
-    }
-    const onFocus = () => {
-      if (document.visibilityState === 'visible') syncAudioAfterInterruption()
-    }
-
-    document.addEventListener('visibilitychange', onVis)
-    window.addEventListener('pageshow', onPageShow)
-    window.addEventListener('focus', onFocus)
-    return () => {
-      document.removeEventListener('visibilitychange', onVis)
-      window.removeEventListener('pageshow', onPageShow)
-      window.removeEventListener('focus', onFocus)
-    }
-  }, [syncAudioAfterInterruption])
-
-  useEffect(() => {
-    return () => {
-      if (timerIdRef.current) window.clearInterval(timerIdRef.current)
-      timerIdRef.current = null
-      isPlayingRef.current = false
-      setIsPlaying(false)
-
-      const ctx = ctxRef.current
-      ctxRef.current = null
-      pannerRef.current = null
-      audioPrimedForCtxRef.current = null
-
-      // App passes a shared AudioContext (Tuner + metronome). Never close() it here — on
-      // React 18 Strict Mode or any remount, close() would leave a dead context in
-      // getSharedAudioContext() and sound would fail until a full page reload. Only close
-      // when this hook created its own context (no getAudioContext option).
-      const shared = typeof getAudioContextOption === 'function'
-      if (shared) return
-      if (ctx && typeof ctx.close === 'function') ctx.close()
-    }
-  }, [getAudioContextOption])
+  useMetronomeAudioUnmount({
+    getAudioContext: getAudioContextOption,
+    ctxRef,
+    pannerRef,
+    audioPrimedForCtxRef,
+    timerIdRef,
+    isPlayingRef,
+    setIsPlaying,
+  })
 
   const meter = useMemo(() => getMeter(timeSignature), [timeSignature])
 
@@ -1873,84 +740,45 @@ export function useMetronome(options = {}) {
   )
 
   const configureTrainer = useCallback((config = {}) => {
-    const cur = trainerRef.current
-    const nextEveryBars =
-      config.everyBars != null
-        ? Math.max(1, Math.floor(Number(config.everyBars) || 1))
-        : config.barsPerStep != null
-          ? Math.max(1, Math.floor(Number(config.barsPerStep) || 1))
-          : cur.everyBars
-    const nextEverySeconds =
-      config.everySeconds != null
-        ? Math.max(0.1, Number(config.everySeconds) || 0.1)
-        : config.durationSeconds != null
-          ? Math.max(0.1, Number(config.durationSeconds) || 0.1)
-          : cur.everySeconds
-
-    const next = {
-      enabled: config.enabled ?? cur.enabled,
-      mode: config.mode ?? cur.mode,
-      startBpm: config.startBpm != null ? clampBpmFloat(config.startBpm) : cur.startBpm,
-      targetBpm: config.targetBpm != null ? clampBpmFloat(config.targetBpm) : cur.targetBpm,
-      targetEnabled:
-        config.targetEnabled != null ? Boolean(config.targetEnabled) : Boolean(cur.targetEnabled ?? false),
-      incrementBpm:
-        config.incrementBpm != null
-          ? Math.max(0.5, Number(config.incrementBpm) || 0.5)
-          : cur.incrementBpm,
-      everyBars: nextEveryBars,
-      everySeconds: nextEverySeconds,
-    }
-
-    trainerRef.current = {
-      ...trainerRef.current,
-      ...next,
-      startedAtAudioTime: trainerRef.current.enabled && !next.enabled ? null : trainerRef.current.startedAtAudioTime,
-    }
-
-    setTrainerEnabled(Boolean(next.enabled))
-    setTrainerMode(next.mode)
-    setTrainerStartBpm(clampBpm(next.startBpm))
-    setTrainerTargetBpm(clampBpm(next.targetBpm))
-    setTrainerTargetEnabled(Boolean(next.targetEnabled))
-    setTrainerIncrementBpm(next.incrementBpm)
-    setTrainerEveryBars(next.everyBars)
-    setTrainerEverySeconds(next.everySeconds)
+    applyMetronomeTrainerConfig(config, {
+      trainerRef,
+      setTrainerEnabled,
+      setTrainerMode,
+      setTrainerStartBpm,
+      setTrainerTargetBpm,
+      setTrainerTargetEnabled,
+      setTrainerIncrementBpm,
+      setTrainerEveryBars,
+      setTrainerEverySeconds,
+    })
   }, [])
 
   const startTrainer = useCallback(
     (config = {}) => {
-      configureTrainer({ ...config, enabled: true })
-      const tr = trainerRef.current
-      tr.enabled = true
-      tr.mode = config.mode ?? tr.mode
-      tr.startBpm = config.startBpm != null ? clampBpmFloat(config.startBpm) : tr.startBpm
-      tr.targetBpm = config.targetBpm != null ? clampBpmFloat(config.targetBpm) : tr.targetBpm
-      if (config.targetEnabled != null) tr.targetEnabled = Boolean(config.targetEnabled)
-      if (config.incrementBpm != null) tr.incrementBpm = Math.max(0.5, Number(config.incrementBpm) || 0.5)
-      if (config.everySeconds != null) tr.everySeconds = Math.max(0.1, Number(config.everySeconds) || 0.1)
-      if (config.everyBars != null) tr.everyBars = Math.max(1, Math.floor(Number(config.everyBars) || 1))
-      if (config.barsPerStep != null) tr.everyBars = Math.max(1, Math.floor(Number(config.barsPerStep) || 1))
-
-      tr.startedAtAudioTime = ctxRef.current ? ctxRef.current.currentTime : null
-      tr.lastAppliedStepIndex = 0
-      tr.lastAppliedAtBar = null
-      tr.barsElapsed = 0
-      setTrainerElapsedTime(0)
-      setTrainerBarsElapsed(0)
-
-      applyBpm(tr.startBpm, { resync: true })
+      startMetronomeTrainerRun(config, {
+        trainerRef,
+        ctxRef,
+        applyBpm,
+        setTrainerElapsedTime,
+        setTrainerBarsElapsed,
+        setTrainerEnabled,
+        setTrainerMode,
+        setTrainerStartBpm,
+        setTrainerTargetBpm,
+        setTrainerTargetEnabled,
+        setTrainerIncrementBpm,
+        setTrainerEveryBars,
+        setTrainerEverySeconds,
+      })
     },
-    [applyBpm, configureTrainer],
+    [applyBpm],
   )
 
   const stopTrainer = useCallback(() => {
-    trainerRef.current.enabled = false
-    trainerRef.current.startedAtAudioTime = null
-    setTrainerEnabled(false)
+    stopMetronomeTrainerRun(trainerRef, setTrainerEnabled)
   }, [])
 
-  return {
+  return buildMetronomeHookReturn({
     bpm,
     setBpm,
     timeSignature,
@@ -1958,217 +786,97 @@ export function useMetronome(options = {}) {
     subdivision,
     setSubdivision,
     isPlaying,
-    countIn: {
-      enabled: countInEnabled,
-      setEnabled: (v) => setCountInEnabled(Boolean(v)),
-      active: countInActive,
-      beatsRemaining: countInBeatsRemaining,
-    },
+    countInEnabled,
+    setCountInEnabled,
+    countInActive,
+    countInBeatsRemaining,
     start,
     stop,
     toggle,
     syncAudioAfterInterruption,
     pulse,
-    pulsesPerMeasure: meter.numerator,
+    meterNumerator: meter.numerator,
     sound,
     setSound,
-    haptics: {
-      enabled: hapticsEnabled,
-      setEnabled: (v) => {
-        const b = Boolean(v)
-        hapticsEnabledRef.current = b
-        setHapticsEnabled(b)
-      },
-    },
+    hapticsEnabled,
+    hapticsEnabledRef,
+    setHapticsEnabled,
     pan,
-    setPan: (v) => setPan(Math.max(-1, Math.min(1, Number(v) || 0))),
-    polyrhythm: {
-      enabled: polyrhythmEnabled,
-      setEnabled: (v) => setPolyrhythmEnabled(Boolean(v)),
-      mainBeats: polyrhythmMainBeats,
-      setMainBeats: (v) => setPolyrhythmMainBeats(v),
-      polyBeats: polyrhythmPolyBeats,
-      setPolyBeats: (v) => setPolyrhythmPolyBeats(v),
-    },
-    automator: {
-      enabled: automatorEnabled,
-      setEnabled: (v) => setAutomatorEnabled(Boolean(v)),
-      startBpm: automatorStartBpm,
-      setStartBpm: (v) => setAutomatorStartBpm(clampBpm(v)),
-      targetBpm: automatorTargetBpm,
-      setTargetBpm: (v) => setAutomatorTargetBpm(clampBpm(v)),
-      incrementBpm: automatorIncrementBpm,
-      setIncrementBpm: (v) => setAutomatorIncrementBpm(Number(v) || 1),
-      changeEveryBars: automatorChangeEveryBars,
-      setChangeEveryBars: (v) => setAutomatorChangeEveryBars(Math.max(1, Math.floor(Number(v) || 1))),
-      barsElapsed: automatorBarsElapsed,
-    },
+    setPan,
+    polyrhythmEnabled,
+    setPolyrhythmEnabled,
+    polyrhythmMainBeats,
+    setPolyrhythmMainBeats,
+    polyrhythmPolyBeats,
+    setPolyrhythmPolyBeats,
+    automatorEnabled,
+    setAutomatorEnabled,
+    automatorStartBpm,
+    setAutomatorStartBpm,
+    automatorTargetBpm,
+    setAutomatorTargetBpm,
+    automatorIncrementBpm,
+    setAutomatorIncrementBpm,
+    automatorChangeEveryBars,
+    setAutomatorChangeEveryBars,
+    automatorBarsElapsed,
     beatAccents,
     setBeatAccentsArray,
     setBeatAccent,
     cycleBeatAccent,
-    internalClock: {
-      enabled: internalClockEnabled,
-      playBars: internalClockPlayBars,
-      muteBars: internalClockMuteBars,
-      isMuted: internalClockIsMuted,
-      barsInPhase: internalClockBarsInPhase,
-      introEnabled: internalClockIntroEnabled,
-      setEnabled: (v) => {
-        const next = Boolean(v)
-        setInternalClockEnabled(next)
-        internalClockRef.current.enabled = next
-        if (!next) {
-          internalClockRef.current.isMuted = false
-          internalClockRef.current.barsInPhase = 0
-          internalClockRef.current.introRemaining = 0
-          setInternalClockIsMuted(false)
-          setInternalClockBarsInPhase(0)
-        } else {
-          internalClockRef.current.introRemaining = internalClockRef.current.introEnabled ? 2 : 0
-        }
-      },
-      setPlayBars: (v) => setInternalClockPlayBars(v),
-      setMuteBars: (v) => setInternalClockMuteBars(v),
-      setIntroEnabled: (v) => {
-        const next = Boolean(v)
-        setInternalClockIntroEnabled(next)
-        internalClockRef.current.introEnabled = next
-      },
-      reset: () => {
-        internalClockRef.current.isMuted = false
-        internalClockRef.current.barsInPhase = 0
-        internalClockRef.current.introRemaining = internalClockRef.current.introEnabled ? 2 : 0
-        setInternalClockIsMuted(false)
-        setInternalClockBarsInPhase(0)
-      },
-    },
-    practiceHistory: {
-      totalMinutes: practiceTotalSeconds / 60,
-      averageBpm: practiceAverageBpm,
-      reset: () => {
-        practiceRef.current.totalSeconds = 0
-        practiceRef.current.bpmSecondsSum = 0
-        setPracticeTotalSeconds(0)
-        setPracticeAverageBpm(0)
-      },
-    },
-    streak: {
-      count: streakCount,
-      lastPracticeDate,
-    },
-    presets: {
-      songs,
-      setlists,
-      activeSongId,
-      setActiveSongId,
-      activeSetlistId,
-      setActiveSetlistId,
-      guestSyncPrompt,
-      clearGuestSyncPrompt: () => setGuestSyncPrompt(null),
-      saveSong: ({ name, bpm, timeSignature, subdivision, synthSnapshot }) => {
-        if (!authedUserId || isAnonymous) setGuestSyncPrompt('Create a permanent account to sync your data across devices.')
-        const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`
-        const meter = getMeter(timeSignature)
-        const song = {
-          id,
-          name,
-          bpm,
-          timeSignature,
-          subdivision,
-          beatAccents: normalizeBeatAccents(meter, beatAccentsRef.current),
-          ...(synthSnapshot && typeof synthSnapshot === 'object' ? { synthSnapshot } : {}),
-        }
-        setSongs((prev) => {
-          const next = [song, ...prev]
-          schedulePersist(next, setlists)
-          return next
-        })
-        setActiveSongId(id)
-        return id
-      },
-      updateSong: (songId, patch) => {
-        if (!songId || !patch || typeof patch !== 'object') return
-        if (!authedUserId || isAnonymous) {
-          setGuestSyncPrompt('Create a permanent account to sync your data across devices.')
-        }
-        setSongs((prev) => {
-          const next = prev.map((s) => (s.id === songId ? { ...s, ...patch } : s))
-          schedulePersist(next, setlists)
-          return next
-        })
-      },
-      applySong: (song) => {
-        if (!song) return
-        setActiveSongId(song.id || '')
-        setTimeSignature(song.timeSignature)
-        setSubdivision(song.subdivision)
-        setBpm(song.bpm)
-        const meter = getMeter(song.timeSignature)
-        setBeatAccents(normalizeBeatAccents(meter, song.beatAccents))
-        if (song.synthSnapshot && typeof synthApplierRef.current === 'function') {
-          try {
-            synthApplierRef.current(song.synthSnapshot)
-          } catch {
-            /* ignore invalid synth snapshot */
-          }
-        }
-      },
-      createSetlist: ({ name }) => {
-        if (!authedUserId || isAnonymous) setGuestSyncPrompt('Create a permanent account to sync your data across devices.')
-        const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`
-        const sl = { id, name, songIds: [] }
-        setSetlists((prev) => {
-          const next = [sl, ...prev]
-          schedulePersist(songs, next)
-          return next
-        })
-        setActiveSetlistId(id)
-        return id
-      },
-      addSongToSetlist: ({ setlistId, songId }) => {
-        if (!authedUserId || isAnonymous) setGuestSyncPrompt('Create a permanent account to sync your data across devices.')
-        setSetlists((prev) => {
-          const next = prev.map((s) =>
-            s.id !== setlistId
-              ? s
-              : { ...s, songIds: [...s.songIds.filter((x) => x !== songId), songId] },
-          )
-          schedulePersist(songs, next)
-          return next
-        })
-      },
-    },
-    auth: {
-      isAnonymous,
-    },
-    events: metEvents,
-    audioClock: metAudioClock,
-    audio: {
-      // Best-effort: create context, prime the mix bus, resume() — all synchronously (use from
-      // onPointerDown / touchstart before play on iOS Safari & standalone web app).
-      ensure: ensureUserGestureAudio,
-    },
-
-    rhythmTrainer: {
-      enabled: trainerEnabled,
-      mode: trainerMode,
-      startBpm: trainerStartBpm,
-      targetBpm: trainerTargetBpm,
-      targetEnabled: trainerTargetEnabled,
-      incrementBpm: trainerIncrementBpm,
-      everySeconds: trainerEverySeconds,
-      everyBars: trainerEveryBars,
-      /** @deprecated Use everyBars */
-      barsPerStep: trainerEveryBars,
-      elapsedTime: trainerElapsedTime,
-      barsElapsed: trainerBarsElapsed,
-      configure: configureTrainer,
-      start: startTrainer,
-      stop: stopTrainer,
-    },
-    /** Queue a throttled persist of songs/setlists + practice + exercise log to user_data. */
+    internalClockEnabled,
+    setInternalClockEnabled,
+    internalClockPlayBars,
+    setInternalClockPlayBars,
+    internalClockMuteBars,
+    setInternalClockMuteBars,
+    internalClockIsMuted,
+    internalClockBarsInPhase,
+    internalClockIntroEnabled,
+    setInternalClockIntroEnabled,
+    internalClockRef,
+    setInternalClockIsMuted,
+    setInternalClockBarsInPhase,
+    practiceRef,
+    practiceTotalSeconds,
+    practiceAverageBpm,
+    setPracticeTotalSeconds,
+    setPracticeAverageBpm,
+    streakCount,
+    lastPracticeDate,
+    songs,
+    setlists,
+    activeSongId,
+    setActiveSongId,
+    activeSetlistId,
+    setActiveSetlistId,
+    guestSyncPrompt,
+    authedUserId,
+    isAnonymous,
+    beatAccentsRef,
+    synthApplierRef,
+    setSongs,
+    setSetlists,
+    setGuestSyncPrompt,
+    schedulePersist,
+    setBeatAccents,
+    metEvents,
+    metAudioClock,
+    ensureUserGestureAudio,
+    trainerEnabled,
+    trainerMode,
+    trainerStartBpm,
+    trainerTargetBpm,
+    trainerTargetEnabled,
+    trainerIncrementBpm,
+    trainerEverySeconds,
+    trainerEveryBars,
+    trainerElapsedTime,
+    trainerBarsElapsed,
+    configureTrainer,
+    startTrainer,
+    stopTrainer,
     scheduleUserDataSync,
-  }
+  })
 }
 

@@ -1,6 +1,6 @@
 .metronomeFloatHud {
   position: fixed;
-  z-index: 1;
+  z-index: 220;
   display: flex;
   flex-direction: column;
   align-items: stretch;
