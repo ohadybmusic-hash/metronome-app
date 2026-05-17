@@ -81,8 +81,16 @@ export function getMeter(timeSignature) {
     case '7/8':
       return { numerator: 7, denominator: 8, accentPulses: new Set([0, 2, 4]) }
     case '4/4':
-    default:
       return { numerator: 4, denominator: 4, accentPulses: new Set([0]) }
+    default: {
+      const m = String(timeSignature || '').match(/^(\d+)\/(\d+)$/)
+      if (m) {
+        const numerator = Math.max(1, Math.min(32, parseInt(m[1], 10)))
+        const denominator = [1, 2, 4, 8, 16, 32].includes(parseInt(m[2], 10)) ? parseInt(m[2], 10) : 4
+        return { numerator, denominator, accentPulses: new Set([0]) }
+      }
+      return { numerator: 4, denominator: 4, accentPulses: new Set([0]) }
+    }
   }
 }
 

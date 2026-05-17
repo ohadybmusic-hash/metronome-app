@@ -13,6 +13,7 @@ export function RotaryDial({ value, onChange, onTap, label = 'BPM', disabled = f
     pointerId: null,
     lastAngle: 0,
     accumulatedTurns: 0,
+    startT: 0,
   })
 
   const minAngle = (-3 * Math.PI) / 4 // -135°
@@ -52,8 +53,8 @@ export function RotaryDial({ value, onChange, onTap, label = 'BPM', disabled = f
       pointerId: e.pointerId,
       lastAngle: a,
       accumulatedTurns: 0,
+      startT: t,
     }
-    setFromPoint(e.clientX, e.clientY)
   }
 
   const onPointerMove = (e) => {
@@ -74,7 +75,7 @@ export function RotaryDial({ value, onChange, onTap, label = 'BPM', disabled = f
     const rangePerRad = 1 / (Math.PI * 2 * turnsPerFullRange)
     dr.accumulatedTurns += delta * rangePerRad
 
-    const nextT = clamp(t + dr.accumulatedTurns, 0, 1)
+    const nextT = clamp(dr.startT + dr.accumulatedTurns, 0, 1)
     onChange(Math.round(tToBpm(nextT)))
   }
 

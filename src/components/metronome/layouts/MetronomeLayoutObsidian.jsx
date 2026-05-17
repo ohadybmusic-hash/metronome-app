@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveBeatIndex } from '../../../hooks/useLiveBeatIndex.js'
 import { bpmToT, normalizeAngleRad, tToBpm } from '../../../lib/metronome/bpmDial.js'
-import { cycleSubdivision, cycleTimeSignature } from '../../../lib/metronome/meterCycle.js'
+import { cycleSubdivision, cycleTimeSignature, METRONOME_TIME_SIGNATURES } from '../../../lib/metronome/meterCycle.js'
 import { RotaryDial } from '../RotaryDial.jsx'
 
 /** Stitch export `01-metronome-wheel.html` — console texture (hosted). */
@@ -53,7 +53,52 @@ export function MetronomeLayoutObsidian({
   const angle = minAngle + (maxAngle - minAngle) * t
 
   const dialShellRef = useRef(/** @type {HTMLDivElement | null} */ (null))
-  const dotDragRef = useRef({ active: false, pointerId: /** @type {number | null} */ (null) })
+  const dotDragRef = useRef({
+    active: false,
+    pointerId: /** @type {number | null} */ (null),
+    startT: 0,
+    lastAngle: 0,
+    accumulatedTurns: 0,
+  })
+
+  // Signature picker
+  const [sigPickerOpen, setSigPickerOpen] = useState(false)
+  const [sigCustomNumer, setSigCustomNumer] = useState(() => (met.timeSignature || '4/4').split('/')[0] || '4')
+  const [sigCustomDenom, setSigCustomDenom] = useState(() => (met.timeSignature || '4/4').split('/')[1] || '4')
+  const sigClickTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null))
+
+  // Subdivision picker
+  const [subPickerOpen, setSubPickerOpen] = useState(false)
+  const subClickTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null))
+
+  const handleSigClick = () => {
+    if (sigClickTimerRef.current) {
+      clearTimeout(sigClickTimerRef.current)
+      sigClickTimerRef.current = null
+      const parts = (met.timeSignature || '4/4').split('/')
+      setSigCustomNumer(parts[0] || '4')
+      setSigCustomDenom(parts[1] || '4')
+      setSigPickerOpen(true)
+    } else {
+      sigClickTimerRef.current = setTimeout(() => {
+        sigClickTimerRef.current = null
+        met.setTimeSignature(cycleTimeSignature(met.timeSignature, 1))
+      }, 240)
+    }
+  }
+
+  const handleSubClick = () => {
+    if (subClickTimerRef.current) {
+      clearTimeout(subClickTimerRef.current)
+      subClickTimerRef.current = null
+      setSubPickerOpen(true)
+    } else {
+      subClickTimerRef.current = setTimeout(() => {
+        subClickTimerRef.current = null
+        met.setSubdivision(cycleSubdivision(met.subdivision, 1))
+      }, 240)
+    }
+  }
 
   const angleFromPoint = (clientX, clientY) => {
     const el = dialShellRef.current
@@ -65,14 +110,6 @@ export function MetronomeLayoutObsidian({
     const dy = clientY - cy
     const a = Math.atan2(dy, dx)
     return normalizeAngleRad(a - Math.PI / 2)
-  }
-
-  const setBpmFromPoint = (clientX, clientY) => {
-    const rotated = angleFromPoint(clientX, clientY)
-    const clampedAngle = Math.max(minAngle, Math.min(maxAngle, rotated))
-    const tt = (clampedAngle - minAngle) / (maxAngle - minAngle)
-    const next = Math.min(400, Math.max(1, Math.round(tToBpm(tt))))
-    met.setBpm(next)
   }
 
   const [bpmEditing, setBpmEditing] = useState(false)
@@ -130,8 +167,9 @@ export function MetronomeLayoutObsidian({
         <button
           type="button"
           className="relative z-[1] flex flex-col text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-          aria-label="Cycle time signature"
-          onClick={() => met.setTimeSignature(cycleTimeSignature(met.timeSignature, 1))}
+          aria-label="Tap to cycle signature, double-tap to open list"
+          title="Tap to cycle · Double-tap to pick"
+          onClick={handleSigClick}
         >
           <span className="font-meter-label text-meter-label uppercase text-outline">Signature</span>
           <span className="font-headline-md text-primary active-glow-obsidian">{met.timeSignature}</span>
@@ -140,8 +178,9 @@ export function MetronomeLayoutObsidian({
         <button
           type="button"
           className="relative z-[1] flex flex-col items-end text-right outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-          aria-label="Cycle subdivision"
-          onClick={() => met.setSubdivision(cycleSubdivision(met.subdivision, 1))}
+          aria-label="Tap to cycle subdivision, double-tap to open list"
+          title="Tap to cycle · Double-tap to pick"
+          onClick={handleSubClick}
         >
           <span className="font-meter-label text-meter-label uppercase text-outline">Subdivision</span>
           <span className="font-headline-md text-primary active-glow-obsidian">{subdivisionWord}</span>
@@ -181,16 +220,29 @@ export function MetronomeLayoutObsidian({
           onPointerDown={(e) => {
             e.preventDefault()
             e.stopPropagation()
-            dotDragRef.current.active = true
-            dotDragRef.current.pointerId = e.pointerId
+            const a = angleFromPoint(e.clientX, e.clientY)
+            dotDragRef.current = {
+              active: true,
+              pointerId: e.pointerId,
+              startT: t,
+              lastAngle: a,
+              accumulatedTurns: 0,
+            }
             e.currentTarget.setPointerCapture(e.pointerId)
-            setBpmFromPoint(e.clientX, e.clientY)
           }}
           onPointerMove={(e) => {
             const dr = dotDragRef.current
             if (!dr.active || dr.pointerId !== e.pointerId) return
             if (!e.buttons) return
-            setBpmFromPoint(e.clientX, e.clientY)
+            const a = angleFromPoint(e.clientX, e.clientY)
+            let delta = a - dr.lastAngle
+            if (delta > Math.PI) delta -= Math.PI * 2
+            if (delta < -Math.PI) delta += Math.PI * 2
+            dr.lastAngle = a
+            const rangePerRad = 1 / (Math.PI * 2 * 1.2)
+            dr.accumulatedTurns += delta * rangePerRad
+            const nextT = Math.min(1, Math.max(0, dr.startT + dr.accumulatedTurns))
+            met.setBpm(Math.min(400, Math.max(1, Math.round(tToBpm(nextT)))))
           }}
           onPointerUp={(e) => {
             const dr = dotDragRef.current
@@ -358,6 +410,163 @@ export function MetronomeLayoutObsidian({
 
       {tapHint ? (
         <p className="relative z-[1] text-center font-meter-label text-[10px] text-on-surface-variant">{tapHint}</p>
+      ) : null}
+
+      {/* ── Signature picker modal ── */}
+      {sigPickerOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Time Signature"
+          onClick={() => setSigPickerOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-[#0d0e10] p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="mb-4 text-center font-label-caps text-xs uppercase tracking-widest text-outline">
+              Time Signature
+            </h3>
+            <p className="mb-3 text-center text-[10px] text-neutral-500">Tap once to select a preset</p>
+            <div className="mb-4 grid grid-cols-5 gap-2">
+              {METRONOME_TIME_SIGNATURES.map((sig) => (
+                <button
+                  key={sig}
+                  type="button"
+                  className={`rounded-xl border py-3 text-xs font-bold transition-all ${
+                    met.timeSignature === sig
+                      ? 'border-primary bg-primary/10 text-primary shadow-[0_0_12px_rgba(138,210,222,0.2)]'
+                      : 'border-neutral-700 text-neutral-400 hover:border-primary/40 hover:text-primary'
+                  }`}
+                  onClick={() => { met.setTimeSignature(sig); setSigPickerOpen(false) }}
+                >
+                  {sig}
+                </button>
+              ))}
+            </div>
+            <div className="border-t border-neutral-800 pt-4">
+              <p className="mb-3 text-center text-[10px] uppercase tracking-widest text-neutral-500">Custom</p>
+              <div className="flex items-center justify-center gap-6">
+                <div className="flex flex-col items-center gap-1">
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-primary hover:bg-primary/10"
+                    onClick={() => setSigCustomNumer((n) => String(Math.min(32, Number(n) + 1)))}
+                    aria-label="Increase numerator"
+                  >
+                    <span className="material-symbols-outlined text-base">expand_less</span>
+                  </button>
+                  <span className="text-3xl font-extrabold leading-none text-white">{sigCustomNumer}</span>
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-primary hover:bg-primary/10"
+                    onClick={() => setSigCustomNumer((n) => String(Math.max(1, Number(n) - 1)))}
+                    aria-label="Decrease numerator"
+                  >
+                    <span className="material-symbols-outlined text-base">expand_more</span>
+                  </button>
+                  <span className="text-[9px] uppercase tracking-widest text-neutral-500">Beats</span>
+                </div>
+                <span className="text-4xl font-light text-neutral-600">/</span>
+                <div className="flex flex-col items-center gap-1">
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-primary hover:bg-primary/10"
+                    onClick={() => {
+                      const opts = [2, 4, 8, 16]
+                      const idx = opts.indexOf(Number(sigCustomDenom))
+                      setSigCustomDenom(String(opts[Math.min(opts.length - 1, idx + 1)]))
+                    }}
+                    aria-label="Increase denominator"
+                  >
+                    <span className="material-symbols-outlined text-base">expand_less</span>
+                  </button>
+                  <span className="text-3xl font-extrabold leading-none text-white">{sigCustomDenom}</span>
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-primary hover:bg-primary/10"
+                    onClick={() => {
+                      const opts = [2, 4, 8, 16]
+                      const idx = opts.indexOf(Number(sigCustomDenom))
+                      setSigCustomDenom(String(opts[Math.max(0, idx - 1)]))
+                    }}
+                    aria-label="Decrease denominator"
+                  >
+                    <span className="material-symbols-outlined text-base">expand_more</span>
+                  </button>
+                  <span className="text-[9px] uppercase tracking-widest text-neutral-500">Note</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="mt-4 w-full rounded-xl border border-primary/30 bg-primary/10 py-2.5 text-sm font-bold text-primary hover:bg-primary/20"
+                onClick={() => {
+                  met.setTimeSignature(`${sigCustomNumer}/${sigCustomDenom}`)
+                  setSigPickerOpen(false)
+                }}
+              >
+                Apply {sigCustomNumer}/{sigCustomDenom}
+              </button>
+            </div>
+            <button
+              type="button"
+              className="mt-3 w-full rounded-xl py-2 text-xs text-neutral-500 hover:text-neutral-300"
+              onClick={() => setSigPickerOpen(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* ── Subdivision picker modal ── */}
+      {subPickerOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Subdivision"
+          onClick={() => setSubPickerOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-[#0d0e10] p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="mb-4 text-center font-label-caps text-xs uppercase tracking-widest text-outline">
+              Subdivision
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { key: 'quarter', label: 'Quarter', desc: '♩' },
+                { key: 'eighth', label: 'Eighth', desc: '♩♩' },
+                { key: 'triplet', label: 'Triplet', desc: '3×' },
+                { key: 'sixteenth', label: 'Sixteenth', desc: '♩♩♩♩' },
+              ].map(({ key, label, desc }) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`flex flex-col items-center justify-center rounded-2xl border py-5 transition-all ${
+                    met.subdivision === key
+                      ? 'border-primary bg-primary/10 text-primary shadow-[0_0_15px_rgba(138,210,222,0.15)]'
+                      : 'border-neutral-700 text-neutral-400 hover:border-primary/40 hover:text-primary'
+                  }`}
+                  onClick={() => { met.setSubdivision(key); setSubPickerOpen(false) }}
+                >
+                  <span className="mb-1 text-xl">{desc}</span>
+                  <span className="font-label-caps text-xs font-bold uppercase tracking-wider">{label}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="mt-4 w-full rounded-xl py-2 text-xs text-neutral-500 hover:text-neutral-300"
+              onClick={() => setSubPickerOpen(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       ) : null}
     </main>
   )

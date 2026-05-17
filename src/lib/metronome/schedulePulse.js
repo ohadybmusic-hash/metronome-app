@@ -176,22 +176,30 @@ export function scheduleMetronomePulse(
     }
 
     if (gapMuted) continue
-    const mul = isPrimary ? beatMul : 1.0
+
+    if (isSubdivisionPulse) {
+      // Subdivision tick: short high-pitched click, clearly distinct from main beats
+      createBeepAt(ctx, when, output, {
+        frequency: 1800,
+        duration: 0.008,
+        volume: 0.36 * clickVolume,
+      })
+      continue
+    }
+
+    const mul = beatMul
     if (mul <= 0) continue
 
-    const timbre = getAccentTimbre(isPrimary ? beatAccentLevel : 'NORMAL')
+    const timbre = getAccentTimbre(beatAccentLevel)
     const frequency = isDownbeat ? 1200 : timbre.freq
-    // Default to the loudest practical internal volume. Users still control the actual device
-    // loudness with the phone's media volume; web apps cannot set system volume.
-    const baseVolume = isDownbeat ? 1.0 : isPrimary ? 1.0 : 0.9
-    const volume = Math.min(1, baseVolume * mul) * clickVolume
+    const volume = Math.min(1, mul) * clickVolume
 
     if (timbre.kind === 'wood') {
       createWoodblockAt(ctx, when, output, { frequency, volume })
     } else {
       createBeepAt(ctx, when, output, {
         frequency,
-        duration: isPrimary ? timbre.dur : 0.02,
+        duration: timbre.dur,
         volume,
       })
     }
