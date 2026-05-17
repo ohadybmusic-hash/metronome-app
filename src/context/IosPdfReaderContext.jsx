@@ -292,17 +292,33 @@ export function PracticePdfLink({ href, resolveHref, className = '', children, t
     )
   }
 
-  // Non-iOS: if we have a resolver, intercept the click and open the resolved URL in a new tab.
+  // Non-iOS with async resolver: open a blank tab synchronously inside the
+  // click handler (preserves the user gesture so popup blockers don't fire),
+  // then redirect it once the signed URL resolves. Falls back to in-tab
+  // navigation only if the popup was actually blocked.
   if (resolveHref) {
     return (
       <button
         type="button"
         className={className}
-        onClick={async (e) => {
+        onClick={(e) => {
           onClick?.(e)
           if (e.defaultPrevented) return
-          const url = await resolve()
-          window.open(url, '_blank', 'noopener,noreferrer')
+          const popup = window.open('about:blank', '_blank', 'noopener,noreferrer')
+          resolve().then(
+            (url) => {
+              if (popup && !popup.closed) {
+                popup.location.href = url
+              } else {
+                window.location.href = url
+              }
+            },
+            () => {
+              if (popup && !popup.closed) {
+                popup.location.href = href
+              }
+            },
+          )
         }}
       >
         {children}
