@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useLiveBeatIndex } from '../../../hooks/useLiveBeatIndex.js'
 import { bpmToT, normalizeAngleRad, tToBpm } from '../../../lib/metronome/bpmDial.js'
 import { cycleSubdivision, cycleTimeSignature, METRONOME_TIME_SIGNATURES } from '../../../lib/metronome/meterCycle.js'
@@ -412,10 +413,10 @@ export function MetronomeLayoutObsidian({
         <p className="relative z-[1] text-center font-meter-label text-[10px] text-on-surface-variant">{tapHint}</p>
       ) : null}
 
-      {/* ── Signature picker modal ── */}
-      {sigPickerOpen ? (
+      {/* ── Signature picker modal (portaled to body to escape stacking traps) ── */}
+      {sigPickerOpen && typeof document !== 'undefined' ? createPortal(
         <div
-          className="fixed inset-0 z-[200] flex items-end justify-center bg-black/70 p-4 sm:items-center"
+          className="fixed inset-0 z-[2147483647] flex items-end justify-center bg-black/70 p-4 sm:items-center"
           role="dialog"
           aria-modal="true"
           aria-label="Time Signature"
@@ -517,13 +518,14 @@ export function MetronomeLayoutObsidian({
               Cancel
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       ) : null}
 
-      {/* ── Subdivision picker modal ── */}
-      {subPickerOpen ? (
+      {/* ── Subdivision picker modal (portaled to body to escape stacking traps) ── */}
+      {subPickerOpen && typeof document !== 'undefined' ? createPortal(
         <div
-          className="fixed inset-0 z-[200] flex items-end justify-center bg-black/70 p-4 sm:items-center"
+          className="fixed inset-0 z-[2147483647] flex items-end justify-center bg-black/70 p-4 sm:items-center"
           role="dialog"
           aria-modal="true"
           aria-label="Subdivision"
@@ -566,7 +568,8 @@ export function MetronomeLayoutObsidian({
               Cancel
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </main>
   )
