@@ -1,5 +1,6 @@
 import { PracticeSheetPdfEmbed } from '../PracticeSheetPdfEmbed.jsx'
 import { PracticePdfLink } from '../../context/IosPdfReaderContext.jsx'
+import { resolvePracticePdfUrl } from '../../lib/practicePdfPrivateStorage.js'
 import { CUSTOM_VALUE } from '../../lib/exerciseProgressUi.js'
 import { practiceOb, practiceObsidianChrome } from '../../lib/practiceObsidianUi.js'
 
@@ -196,6 +197,7 @@ export default function LogSessionForm({
               <PracticePdfLink
                 className={ob ? `${practiceOb.btnPrimary} !no-underline` : 'metronome__btn metronome__btn--primary !no-underline'}
                 href={formPdfSrc}
+                resolveHref={() => resolvePracticePdfUrl(formPdfSrc)}
                 title={resolvedExerciseName || 'Sheet'}
               >
                 Open PDF

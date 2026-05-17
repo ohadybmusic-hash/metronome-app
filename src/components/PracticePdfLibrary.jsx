@@ -5,6 +5,7 @@ import { normalizeExerciseLabel } from '../lib/exerciseProgressUi.js'
 import { practiceObsidianChrome } from '../lib/practiceObsidianUi.js'
 import { PracticeSheetPdfEmbed } from './PracticeSheetPdfEmbed.jsx'
 import { PracticePdfLink } from '../context/IosPdfReaderContext.jsx'
+import { resolvePracticePdfUrl } from '../lib/practicePdfPrivateStorage.js'
 import './PracticePdfLibrary.css'
 
 function buildSectionsForLibrary(lib, customExerciseNames, placements, sheetsByExercise) {
@@ -138,6 +139,7 @@ export default function PracticePdfLibrary({
                                         <PracticePdfLink
                                           className="metronome__btn metronome__btn--primary !no-underline !py-1.5 !text-[11px]"
                                           href={item.href}
+                                          resolveHref={item.isCustom ? undefined : () => resolvePracticePdfUrl(item.href)}
                                           title={item.title}
                                           onClick={(e) => e.stopPropagation()}
                                         >
@@ -146,9 +148,16 @@ export default function PracticePdfLibrary({
                                         <button
                                           type="button"
                                           className="metronome__btn !py-1.5 !text-[11px]"
-                                          onClick={(e) => {
+                                          onClick={async (e) => {
                                             e.stopPropagation()
-                                            setPreviewUrl(isPreview ? null : item.href)
+                                            if (isPreview) {
+                                              setPreviewUrl(null)
+                                              return
+                                            }
+                                            const url = item.isCustom
+                                              ? item.href
+                                              : await resolvePracticePdfUrl(item.href)
+                                            setPreviewUrl(url || item.href)
                                           }}
                                         >
                                           {isPreview ? 'Hide' : 'Preview'}

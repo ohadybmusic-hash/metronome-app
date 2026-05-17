@@ -164,7 +164,7 @@ export default function SetlistManager({ met, stageMode, setStageMode, synthBrid
               met.presets.applySong(s)
             }}
           >
-            <option value="">Select a song…</option>
+            <option value="">{met.presets.songs.length === 0 ? 'No songs yet — tap “Save song” below to add one' : 'Select a song…'}</option>
             {met.presets.songs.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name} — {Math.round(s.bpm)} BPM
@@ -227,7 +227,7 @@ export default function SetlistManager({ met, stageMode, setStageMode, synthBrid
             value={met.presets.activeSetlistId}
             onChange={(e) => met.presets.setActiveSetlistId(e.target.value)}
           >
-            <option value="">Setlist…</option>
+            <option value="">{met.presets.setlists.length === 0 ? 'No setlists — tap “New setlist” to create one' : 'Setlist…'}</option>
             {met.presets.setlists.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name} ({s.songIds.length})

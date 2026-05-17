@@ -1,4 +1,5 @@
 import { PracticePdfLink } from '../../context/IosPdfReaderContext.jsx'
+import { resolvePracticePdfUrl } from '../../lib/practicePdfPrivateStorage.js'
 import { practiceOb, practiceObsidianChrome } from '../../lib/practiceObsidianUi.js'
 
 /**
@@ -22,7 +23,7 @@ export default function PracticeLogCardsMobile({
   return (
     <div className="md:hidden flex flex-col gap-3">
       {entries.length === 0 ? (
-        <div className={emptyCls}>No entries yet.</div>
+        <div className={emptyCls}>No entries yet. Log a session using the form above.</div>
       ) : (
         entries.map((e) => {
           const cardPdf = resolvePdfUrl(e.exerciseName)
@@ -35,6 +36,7 @@ export default function PracticeLogCardsMobile({
                   {cardPdf ? (
                     <PracticePdfLink
                       href={cardPdf}
+                      resolveHref={() => resolvePracticePdfUrl(cardPdf)}
                       className={`mt-1 inline-block ${linkC} !p-0 !text-xs`}
                       title={e.exerciseName || 'Sheet'}
                     >

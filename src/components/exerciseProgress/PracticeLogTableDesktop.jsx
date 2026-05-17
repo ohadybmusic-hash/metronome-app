@@ -1,4 +1,5 @@
 import { PracticePdfLink } from '../../context/IosPdfReaderContext.jsx'
+import { resolvePracticePdfUrl } from '../../lib/practicePdfPrivateStorage.js'
 import { practiceOb, practiceObsidianChrome } from '../../lib/practiceObsidianUi.js'
 
 /**
@@ -52,6 +53,7 @@ export default function PracticeLogTableDesktop({
                     {rowPdf ? (
                       <PracticePdfLink
                         href={rowPdf}
+                        resolveHref={() => resolvePracticePdfUrl(rowPdf)}
                         className={`${linkC} !text-[11px]`}
                         title={e.exerciseName || 'Sheet'}
                       >

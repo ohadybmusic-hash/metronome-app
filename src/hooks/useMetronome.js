@@ -85,7 +85,16 @@ export function useMetronome(options = {}) {
   const [subdivision, setSubdivision] = useState(initialSubdivision)
   const [isPlaying, setIsPlaying] = useState(false)
   const isPlayingRef = useRef(false)
-  const [pulse, setPulse] = useState(0)
+  // `pulse` is advanced every scheduled beat. Reading it via React state would
+  // re-render the entire hook (and every consumer of `met`) up to ~13x/sec at
+  // 200 BPM + sixteenths. The visual layer subscribes to `events.onScheduledBeat`
+  // (see useLiveBeatIndex / BeatBlocksJuicy) instead — so we keep the value in
+  // a ref and expose it only as a non-reactive snapshot in the return object.
+  const pulseRef = useRef(0)
+  const setPulse = useCallback((next) => {
+    pulseRef.current = typeof next === 'function' ? next(pulseRef.current) : next
+  }, [])
+  const getPulse = useCallback(() => pulseRef.current, [])
 
   const [sound, setSound] = useState('beep') // 'beep' | 'voiceNumbers' | 'voiceCount'
   const [clickVolume, setClickVolume] = useState(1)
@@ -818,7 +827,9 @@ export function useMetronome(options = {}) {
     stop,
     toggle,
     syncAudioAfterInterruption,
-    pulse,
+    // Non-reactive getter. Consumers needing live beat updates should use
+    // `events.onScheduledBeat` or the useLiveBeatIndex hook.
+    getPulse,
     meterNumerator: meter.numerator,
     sound,
     setSound,

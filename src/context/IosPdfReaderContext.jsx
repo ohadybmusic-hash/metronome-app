@@ -254,24 +254,62 @@ export function useIosPdfReader() {
   }
 }
 
-export function PracticePdfLink({ href, className = '', children, title = 'Sheet', onClick }) {
+/**
+ * @param {object} props
+ * @param {string} props.href                 The static / fallback URL.
+ * @param {() => Promise<string>} [props.resolveHref]  Optional async resolver — if provided,
+ *   the actual URL is fetched at click time (e.g. a signed URL from private storage).
+ *   On failure, falls back to `href`.
+ */
+export function PracticePdfLink({ href, resolveHref, className = '', children, title = 'Sheet', onClick }) {
   const { openPdf } = useIosPdfReader()
   if (!href) return null
+
+  const resolve = async () => {
+    if (!resolveHref) return href
+    try {
+      const url = await resolveHref()
+      return url || href
+    } catch {
+      return href
+    }
+  }
+
   if (isIOSOrIPadOS()) {
     return (
       <button
         type="button"
         className={className}
-        onClick={(e) => {
+        onClick={async (e) => {
           onClick?.(e)
           if (e.defaultPrevented) return
-          openPdf({ url: href, title })
+          const url = await resolve()
+          openPdf({ url, title })
         }}
       >
         {children}
       </button>
     )
   }
+
+  // Non-iOS: if we have a resolver, intercept the click and open the resolved URL in a new tab.
+  if (resolveHref) {
+    return (
+      <button
+        type="button"
+        className={className}
+        onClick={async (e) => {
+          onClick?.(e)
+          if (e.defaultPrevented) return
+          const url = await resolve()
+          window.open(url, '_blank', 'noopener,noreferrer')
+        }}
+      >
+        {children}
+      </button>
+    )
+  }
+
   return (
     <a
       className={className}
