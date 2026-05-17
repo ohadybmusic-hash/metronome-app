@@ -415,7 +415,7 @@ export function MetronomeLayoutObsidian({
       {/* ── Signature picker modal ── */}
       {sigPickerOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center"
+          className="fixed inset-0 z-[200] flex items-end justify-center bg-black/70 p-4 sm:items-center"
           role="dialog"
           aria-modal="true"
           aria-label="Time Signature"
@@ -523,7 +523,7 @@ export function MetronomeLayoutObsidian({
       {/* ── Subdivision picker modal ── */}
       {subPickerOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center"
+          className="fixed inset-0 z-[200] flex items-end justify-center bg-black/70 p-4 sm:items-center"
           role="dialog"
           aria-modal="true"
           aria-label="Subdivision"
