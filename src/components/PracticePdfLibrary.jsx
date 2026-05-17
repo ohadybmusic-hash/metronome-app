@@ -6,6 +6,7 @@ import { practiceObsidianChrome } from '../lib/practiceObsidianUi.js'
 import { PracticeSheetPdfEmbed } from './PracticeSheetPdfEmbed.jsx'
 import { PracticePdfLink } from '../context/IosPdfReaderContext.jsx'
 import { resolvePracticePdfUrl } from '../lib/practicePdfPrivateStorage.js'
+import { UserPracticePdfs } from './UserPracticePdfs.jsx'
 import './PracticePdfLibrary.css'
 
 function buildSectionsForLibrary(lib, customExerciseNames, placements, sheetsByExercise) {
@@ -70,9 +71,13 @@ export default function PracticePdfLibrary({
     return getVisiblePracticePdfLibraries(user?.email)
   }, [visibleLibrariesProp, isLocalhostPreview, user?.email])
 
-  if ((!user?.email && !isLocalhostPreview) || visibleLibraries.length === 0) {
+  // Signed-out (and not on localhost) → no Sheet library at all.
+  if (!user?.email && !isLocalhostPreview) {
     return null
   }
+  // Signed-in users always get the "My sheets" section, even without
+  // allowlist access to a curated library.
+  const hasCuratedLibraries = visibleLibraries.length > 0
 
   return (
     <details className={ob ? 'practicePdfLib practicePdfLib--obsidian' : 'practicePdfLib'}>
@@ -85,11 +90,14 @@ export default function PracticePdfLibrary({
 
       <div className="practicePdfLib__body">
         <p className="mb-4 text-xs text-on-surface-variant">
-          Open a main folder, then a section. Course PDFs and your custom exercises (by folder) appear
-          here. Custom entries without a PDF link can get one from the practice log.
+          {hasCuratedLibraries
+            ? 'Open a main folder, then a section. Course PDFs and your custom exercises (by folder) appear here. Custom entries without a PDF link can get one from the practice log.'
+            : 'Upload your own practice PDFs below. Files are private to your account.'}
         </p>
 
-        <div className="space-y-2">
+        <UserPracticePdfs />
+
+        <div className="mt-3 space-y-2">
           {visibleLibraries.map((lib) => {
             const sectionModels = buildSectionsForLibrary(
               lib,

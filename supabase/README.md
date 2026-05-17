@@ -10,6 +10,7 @@ SQL files in this folder are meant to be run **in order** via the Supabase SQL E
 4. `grant_admin_users.sql` — promotes specific accounts to admin.
 5. **`lock_is_admin_escalation.sql`** — closes a self-promotion bug in the profiles UPDATE policy. **Critical, run this if you haven't already.**
 6. **`practice_pdfs_private_bucket.sql`** — moves ROYZIVGSB course PDFs from `public/practice-pdfs/` into a private Storage bucket, gated by RLS.
+7. **`per_user_pdf_uploads.sql`** — extends the bucket's RLS so every signed-in user has read+write access to their own folder (`<user_id>/...`). Powers the "My sheets" upload UI.
 
 ## After running `practice_pdfs_private_bucket.sql`
 
@@ -45,3 +46,16 @@ values ('newuser@example.com', 'royzivgsb');
 ```
 
 The hardcoded list in `src/lib/royzivgsbAccess.js` is now only used for the *UI* gate (does the Sheet library show up?). The real security boundary is the RLS policy on `storage.objects`. If you want the UI to match exactly, also update that file — or follow up by switching the UI to query `allowed_pdf_users` at runtime.
+
+## Per-user uploads
+
+After running `per_user_pdf_uploads.sql`, every signed-in user can upload PDFs into their own folder in the bucket (`<auth.uid()>/<filename>`):
+
+- The "My sheets" section in the Sheet library shows the user a list of their uploads with Open / Delete actions.
+- Storage RLS guarantees user A cannot read user B's folder.
+- Non-allowlisted users still don't see the ROYZIVGSB folders, but they get the "My sheets" surface in the Practice tab.
+
+Optional hardening (in the Supabase dashboard, Storage → Buckets → practice-pdfs-private):
+
+- **Allowed MIME types**: `application/pdf`
+- **File size limit**: 5 MB (matches the client-side cap in [src/components/UserPracticePdfs.jsx](../src/components/UserPracticePdfs.jsx))

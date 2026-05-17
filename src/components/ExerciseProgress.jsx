@@ -300,10 +300,12 @@ export default function ExerciseProgress({ met, userId, exerciseRemote, exercise
       >
         <div className="text-xl font-semibold tracking-tight">Practice log</div>
         <p className="mt-3 max-w-lg text-sm text-on-surface-variant">
-          Session logs are tied to your sheet library. Sign in with the account that has course
-          access to log practice against those PDFs. Without library access, no log entries are
-          stored or shown.
+          Session stats are tied to a curated sheet library, which this account doesn&apos;t have
+          access to. You can still upload and view your own practice PDFs below.
         </p>
+        <div className="mt-4">
+          <PracticePdfLibrary visualLayout={visualLayout} />
+        </div>
       </div>
     )
   }

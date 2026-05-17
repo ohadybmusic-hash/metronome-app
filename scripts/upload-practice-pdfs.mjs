@@ -85,10 +85,16 @@ let ok = 0
 let failed = 0
 for (const filePath of files) {
   const key = relative(ROOT, filePath).replaceAll('\\', '/')
-  const body = readFileSync(filePath)
+  // Wrap as a Uint8Array-backed Blob. Passing a raw Node Buffer triggers a
+  // UTF-8 → ByteString conversion inside @supabase/supabase-js, which crashes
+  // on PDFs containing non-ASCII bytes (e.g. the U+2192 "→" arrow at offset 21
+  // of certain PDF metadata streams).
+  const buf = readFileSync(filePath)
+  const bytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)
+  const blob = new Blob([bytes], { type: 'application/pdf' })
   const { error } = await supabase.storage
     .from(BUCKET)
-    .upload(key, body, { contentType: 'application/pdf', upsert: true })
+    .upload(key, blob, { contentType: 'application/pdf', upsert: true })
   if (error) {
     console.error(`  ✗ ${key}: ${error.message}`)
     failed += 1
