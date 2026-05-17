@@ -2,6 +2,7 @@ import { createContext, useCallback, useEffect, useLayoutEffect, useMemo, useRef
 import RecoveryPasswordOverlay from '../components/RecoveryPasswordOverlay.jsx'
 import { getAuthLocalBootstrap } from '../lib/authLocalBootstrap.js'
 import { friendlyAuthLinkError, parseAuthUrlError, stripAuthErrorFromUrl } from '../lib/authUrlErrors'
+import { scheduleIdleTask } from '../lib/scheduleIdle.js'
 import { supabase } from '../lib/supabaseClient'
 
 const AuthContext = createContext(null)
@@ -108,12 +109,31 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  // Start profile fetch in parallel with Supabase `initialize` / INITIAL_SESSION (fast path only).
-  useLayoutEffect(() => {
-    if (authBoot.hasFastPath && authBoot.user) {
-      void refreshProfile(authBoot.user)
+  // Defer admin/profile fetch until after first paint so it does not compete with shell + metronome.
+  useEffect(() => {
+    if (!authBoot.hasFastPath || !authBoot.user) return
+    let cancelled = false
+    const run = () => {
+      if (!cancelled) void refreshProfile(authBoot.user)
+    }
+    const cancel = scheduleIdleTask(run, { timeout: 2000 })
+    return () => {
+      cancelled = true
+      cancel()
     }
   }, [authBoot.hasFastPath, authBoot.user, refreshProfile])
+
+  // If `INITIAL_SESSION` never fires (blocked storage, client bug, or network stall), don't leave consumers deadlocked.
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setLoading((prev) => {
+        if (!prev) return prev
+        console.warn('[auth] Forcing loading=false — INITIAL_SESSION did not complete in time')
+        return false
+      })
+    }, 15000)
+    return () => window.clearTimeout(t)
+  }, [])
 
   useEffect(() => {
     let cancelled = false

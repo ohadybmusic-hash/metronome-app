@@ -1,5 +1,7 @@
 import { useMemo } from 'react'
-import drumKitImage from '../assets/drum-kit-illustration.png'
+import drumKitPng from '../assets/drum-kit-illustration.png'
+import drumKitWebp from '../assets/drum-kit-illustration.webp'
+import drumKitAvif from '../assets/drum-kit-illustration.avif'
 import { ILLUSTRATION_HOTSPOTS } from '../lib/drumKitIllustrationHotspots.js'
 import { VOICE_ORDER } from '../lib/drumSamplePlayback.js'
 import { DRUM_VOICES } from '../lib/drumVoices.js'
@@ -27,16 +29,20 @@ export function DrumKitIllustration({ lastHitIndex = -1, lastHitToken = 0 }) {
         Press A–D to edit
       </p>
       <div className="relative w-full max-w-[min(400px,88vw)]">
-        <img
-          src={drumKitImage}
-          alt=""
-          className="block h-auto max-h-[min(200px,28vh)] w-full"
-          width={2304}
-          height={1728}
-          loading="eager"
-          decoding="async"
-          fetchPriority="low"
-        />
+        <picture>
+          <source type="image/avif" srcSet={drumKitAvif} />
+          <source type="image/webp" srcSet={drumKitWebp} />
+          <img
+            src={drumKitPng}
+            alt=""
+            className="block h-auto max-h-[min(200px,28vh)] w-full"
+            width={2304}
+            height={1728}
+            loading="lazy"
+            decoding="async"
+            fetchPriority="low"
+          />
+        </picture>
         {box != null && lastHitIndex >= 0 && (
           <div
             className="pointer-events-none absolute"

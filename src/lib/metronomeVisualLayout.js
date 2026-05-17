@@ -30,9 +30,11 @@ export function writeMetronomeVisualLayout(layout) {
 }
 
 /**
- * Syncs global `data-theme` with Stitch layouts: Light uses light tokens; Obsidian/Synthwave stay dark.
+ * Syncs global tokens: `data-visual-layout` drives Tailwind semantic vars; `data-theme` is legacy (`light` vs `dark`).
+ * Light layout uses Stitch studio palette; Obsidian + Synthwave share dark chrome.
  * @param {MetronomeVisualLayout} layout
  */
 export function applyDocumentThemeForVisualLayout(layout) {
+  document.documentElement.dataset.visualLayout = layout
   document.documentElement.dataset.theme = layout === 'light' ? 'light' : 'dark'
 }

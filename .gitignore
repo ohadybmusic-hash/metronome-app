@@ -26,3 +26,8 @@ dist-ssr
 .vercel
 .env
 .env.*
+
+# Optional: Stitch HTML/PNG exports (run `npm run stitch:export-light` with STITCH_API_KEY)
+design-refs/stitch-precision-tempo-light/
+design-refs/stitch-precision-tempo-synthwave/
+design-refs/stitch-precision-tempo-obsidian-final/

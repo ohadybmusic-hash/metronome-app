@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { BEAT_OPTIONS, formatDelayPreview } from '../lib/fxMath.js'
 import { VOICE_ORDER } from '../lib/drumSamplePlayback.js'
 import { getEffectiveReverbTuning } from '../lib/reverbTuning.js'
+import { synthChromeUi } from '../lib/synthChromeUi.js'
 import { Row } from './FormRow.jsx'
 
 const VOICE_SHORT = {
@@ -98,7 +99,8 @@ const REVERB_SPACE_GUIDE = {
     'Largest IR (about 2.5× Normal’s time scale) with the strongest length/damping nudge: longest bias and more high-frequency tail loss, so it reads as a very big or ambient space. Pairs with Hall or high mix for pads.',
 }
 
-export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, drumMode = false }) {
+export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, drumMode = false, obsidianChrome = false, synthwaveChrome = false }) {
+  const u = synthChromeUi(obsidianChrome ? 'obsidian' : synthwaveChrome ? 'synthwave' : 'legacy')
   const [reverbModeGuideOpen, setReverbModeGuideOpen] = useState(false)
   const [reverbSpaceGuideOpen, setReverbSpaceGuideOpen] = useState(false)
   const isDelayOn = fx.delayType !== 'off'
@@ -110,17 +112,15 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
     [fx],
   )
   return (
-    <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/20 p-3">
-      <h3 className="mb-2 text-sm font-semibold text-zinc-200">Time and space</h3>
-      <p className="mb-2 text-[11px] text-zinc-500">
+    <div className={u.panel}>
+      <h3 className={u.h3}>Time and space</h3>
+      <p className={u.body}>
         Dry, delay, and reverb in parallel. Each mode and space preset nudges the
         length and damping sliders (see the effective readout). Diffusion shapes
         early energy vs a smoother body in the tail. Rebuilding the IR is cheap when
         you change a control. Delay is off = no echo; BPM for delay time.
       </p>
-      <p className="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-zinc-500">
-        Reverb
-      </p>
+      <p className={u.labelCaps}>Reverb</p>
       <div className="mb-3 flex flex-wrap gap-1.5">
         {REVERB_OPTS.map((o) => (
           <button
@@ -131,11 +131,7 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
               onUserGesture?.()
               setFx((s) => ({ ...s, reverbType: o.id }))
             }}
-            className={`rounded-md px-2.5 py-1.5 text-xs font-medium ${
-              fx.reverbType === o.id
-                ? 'bg-[#39ff14]/20 text-[#39ff14] ring-1 ring-[#39ff14]/50'
-                : 'bg-zinc-900/80 text-zinc-300 ring-1 ring-zinc-800'
-            }`}
+            className={u.pill(fx.reverbType === o.id)}
           >
             {o.label}
           </button>
@@ -146,23 +142,23 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
           type="button"
           onClick={() => setReverbModeGuideOpen((o) => !o)}
           aria-expanded={reverbModeGuideOpen}
-          className="w-full touch-manipulation rounded-md border border-zinc-800/60 bg-zinc-950/40 px-2 py-1.5 text-left text-[10px] font-medium text-zinc-400 active:bg-zinc-900/80"
+          className={u.ghostBtn}
         >
           {reverbModeGuideOpen
             ? 'Hide what each reverb mode does'
             : 'Show what each reverb mode does'}
         </button>
         {reverbModeGuideOpen ? (
-          <div className="mt-1.5 rounded-md border border-zinc-800/50 bg-zinc-950/50 px-2 py-1.5">
-            <ul className="list-none space-y-1.5 text-[10px] leading-snug text-zinc-500">
+          <div className={u.inset}>
+            <ul className={u.list}>
               {REVERB_OPTS.map((o) => {
                 const active = fx.reverbType === o.id
                 return (
                   <li
                     key={o.id}
-                    className={active ? 'text-zinc-200' : 'text-zinc-500'}
+                    className={active ? u.listItemActive : u.muted}
                   >
-                    <span className="font-semibold text-zinc-300">{o.label}</span>
+                    <span className={u.listStrong}>{o.label}</span>
                     {'. '}
                     {REVERB_MODE_GUIDE[o.id] ?? ''}
                   </li>
@@ -173,7 +169,7 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
         ) : null}
       </div>
       <div className="mb-3 space-y-2.5">
-        <Row
+        <Row obsidianChrome={obsidianChrome}
           label="Reverb mix"
           value={fx.reverbMix}
           onChange={(v) => {
@@ -185,7 +181,7 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
           step={0.01}
           fmt={(v) => v.toFixed(2)}
         />
-        <Row
+        <Row obsidianChrome={obsidianChrome}
           label="Reverb pre-delay (ms)"
           value={fx.reverbPreDelayMs ?? 0}
           onChange={(v) => {
@@ -197,7 +193,7 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
           step={1}
           fmt={(v) => `${Math.round(v)} ms`}
         />
-        <p className="text-[10px] font-medium uppercase tracking-widest text-zinc-500">
+        <p className={u.labelCapsTight}>
           Reverb space (IR time scale + length &amp; damping nudge)
         </p>
         <div className="mb-2 flex flex-wrap gap-1.5">
@@ -210,11 +206,7 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
                 onUserGesture?.()
                 setFx((s) => ({ ...s, reverbSize: o.id }))
               }}
-              className={`rounded-md px-2.5 py-1.5 text-xs font-medium ${
-                (fx.reverbSize ?? 'normal') === o.id
-                  ? 'bg-[#39ff14]/20 text-[#39ff14] ring-1 ring-[#39ff14]/50'
-                  : 'bg-zinc-900/80 text-zinc-300 ring-1 ring-zinc-800'
-              }`}
+              className={u.pill((fx.reverbSize ?? 'normal') === o.id)}
             >
               {o.label}
             </button>
@@ -225,23 +217,23 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
             type="button"
             onClick={() => setReverbSpaceGuideOpen((o) => !o)}
             aria-expanded={reverbSpaceGuideOpen}
-            className="w-full touch-manipulation rounded-md border border-zinc-800/60 bg-zinc-950/40 px-2 py-1.5 text-left text-[10px] font-medium text-zinc-400 active:bg-zinc-900/80"
+            className={u.ghostBtn}
           >
             {reverbSpaceGuideOpen
               ? 'Hide what each reverb space option does'
               : 'Show what each reverb space option does'}
           </button>
           {reverbSpaceGuideOpen ? (
-            <div className="mt-1.5 rounded-md border border-zinc-800/50 bg-zinc-950/50 px-2 py-1.5">
-              <ul className="list-none space-y-1.5 text-[10px] leading-snug text-zinc-500">
+            <div className={u.inset}>
+              <ul className={u.list}>
                 {REVERB_SIZE_OPTS.map((o) => {
                   const active = (fx.reverbSize ?? 'normal') === o.id
                   return (
                     <li
                       key={o.id}
-                      className={active ? 'text-zinc-200' : 'text-zinc-500'}
+                      className={active ? u.listItemActive : u.muted}
                     >
-                      <span className="font-semibold text-zinc-300">{o.label}</span>
+                      <span className={u.listStrong}>{o.label}</span>
                       {'. '}
                       {REVERB_SPACE_GUIDE[o.id] ?? ''}
                     </li>
@@ -251,7 +243,7 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
             </div>
           ) : null}
         </div>
-        <Row
+        <Row obsidianChrome={obsidianChrome}
           label="Reverb length"
           value={
             fx.reverbLength != null && Number.isFinite(fx.reverbLength)
@@ -267,7 +259,7 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
           step={0.01}
           fmt={(v) => `${v.toFixed(2)} s scale`}
         />
-        <Row
+        <Row obsidianChrome={obsidianChrome}
           label="Reverb damping (HF in tail)"
           value={fx.reverbDamping ?? 0.5}
           onChange={(v) => {
@@ -279,7 +271,7 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
           step={0.01}
           fmt={(v) => `${Math.round(v * 100)}%`}
         />
-        <Row
+        <Row obsidianChrome={obsidianChrome}
           label="Reverb diffusion"
           value={fx.reverbDiffusion ?? 0.5}
           onChange={(v) => {
@@ -292,23 +284,21 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
           fmt={(v) => `${Math.round(v * 100)}%`}
         />
         {reverbTuned ? (
-          <p className="text-[10px] leading-snug text-zinc-500">
-            Effective: length scale <span className="text-zinc-300">{reverbTuned.length.toFixed(2)}</span>
+          <p className={`text-[10px] leading-snug ${u.muted}`}>
+            Effective: length scale <span className={u.strong}>{reverbTuned.length.toFixed(2)}</span>
             {', '}
-            damping <span className="text-zinc-300">
+            damping <span className={u.strong}>
               {Math.round(reverbTuned.damping * 100)}%
             </span>
             {', '}
-            diffusion <span className="text-zinc-300">
+            diffusion <span className={u.strong}>
               {Math.round(reverbTuned.diffusion * 100)}%
             </span>{' '}
             (sliders + mode + space; space also scales max IR time)
           </p>
         ) : null}
       </div>
-      <p className="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-zinc-500">
-        Delay
-      </p>
+      <p className={u.labelCaps}>Delay</p>
       <div className="mb-3 flex flex-wrap gap-1.5">
         {DELAY_OPTS.map((o) => (
           <button
@@ -318,18 +308,14 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
               onUserGesture?.()
               setFx((s) => ({ ...s, delayType: o.id }))
             }}
-            className={`rounded-md px-2.5 py-1.5 text-xs font-medium ${
-              fx.delayType === o.id
-                ? 'bg-[#39ff14]/20 text-[#39ff14] ring-1 ring-[#39ff14]/50'
-                : 'bg-zinc-900/80 text-zinc-300 ring-1 ring-zinc-800'
-            }`}
+            className={u.pill(fx.delayType === o.id)}
           >
             {o.label}
           </button>
         ))}
       </div>
       <div className="space-y-2.5">
-        <Row
+        <Row obsidianChrome={obsidianChrome}
           label="Delay mix"
           value={fx.delayMix}
           onChange={(v) => {
@@ -343,9 +329,7 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
         />
         {isDelayOn ? (
           <>
-            <p className="pt-1 text-[10px] font-medium uppercase tracking-widest text-zinc-500">
-              Delay time source
-            </p>
+            <p className={`pt-1 ${u.labelCapsTight}`}>Delay time source</p>
             <div className="mb-1 flex flex-wrap gap-1.5">
               {TIMING_MODES.map((m) => (
                 <button
@@ -355,11 +339,7 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
                     onUserGesture?.()
                     setFx((s) => ({ ...s, delayTimeMode: m.id }))
                   }}
-                  className={`rounded-md px-2.5 py-1.5 text-xs font-medium ${
-                    timeMode === m.id
-                      ? 'bg-[#39ff14]/20 text-[#39ff14] ring-1 ring-[#39ff14]/50'
-                      : 'bg-zinc-900/80 text-zinc-300 ring-1 ring-zinc-800'
-                  }`}
+                  className={u.pill(timeMode === m.id)}
                 >
                   {m.label}
                 </button>
@@ -367,7 +347,7 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
             </div>
             {timeMode === 'bpm' ? (
               <>
-                <Row
+                <Row obsidianChrome={obsidianChrome}
                   label="BPM"
                   value={Number(fx.bpm) || 120}
                   onChange={(v) => {
@@ -380,11 +360,13 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
                   fmt={(v) => `${v.toFixed(1)} BPM`}
                 />
                 <div>
-                  <div className="mb-1 flex justify-between text-xs text-zinc-400">
+                  <div
+                    className={`mb-1 flex justify-between text-xs ${obsidianChrome ? 'text-on-surface-variant' : 'text-zinc-400'}`}
+                  >
                     <span>Note vs beat (quarter=1)</span>
                   </div>
                   <select
-                    className="w-full rounded-lg border border-zinc-800 bg-zinc-950/90 py-2 pl-2 pr-8 text-sm text-zinc-200"
+                    className={u.select}
                     value={fx.bpmDivision ?? '1/8'}
                     onChange={(e) => {
                       onUserGesture?.()
@@ -406,7 +388,7 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
               </>
             ) : null}
             {timeMode === 'ms' ? (
-              <Row
+              <Row obsidianChrome={obsidianChrome}
                 label="Delay (milliseconds)"
                 value={fx.delayTimeMs ?? 250}
                 onChange={(v) => {
@@ -420,7 +402,7 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
               />
             ) : null}
             {timeMode === 's' ? (
-              <Row
+              <Row obsidianChrome={obsidianChrome}
                 label="Delay (seconds)"
                 value={fx.delayTimeS ?? 0.25}
                 onChange={(v) => {
@@ -433,10 +415,10 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
                 fmt={(v) => `${v.toFixed(3)} s`}
               />
             ) : null}
-            <p className="text-[11px] text-zinc-500">
+            <p className={u.bodySmall}>
               Computed: {formatDelayPreview(fx)}
             </p>
-            <Row
+            <Row obsidianChrome={obsidianChrome}
               label="Delay feedback"
               value={fx.delayFeedback}
               onChange={(v) => {
@@ -452,11 +434,9 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
         ) : null}
       </div>
       {drumMode && drumKit && setDrumKit ? (
-        <div className="mt-3 border-t border-zinc-800/60 pt-3">
-          <p className="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-zinc-500">
-            Drums to FX
-          </p>
-          <p className="mb-2 text-[10px] text-zinc-600">
+        <div className={u.divider}>
+          <p className={u.labelCaps}>Drums to FX</p>
+          <p className={`mb-2 ${u.sectionLabelDim}`}>
             Per pad: send through delay and reverb, or only dry to the main output (bypass
             this block).
           </p>
@@ -479,20 +459,16 @@ export function EffectsBlock({ fx, setFx, onUserGesture, drumKit, setDrumKit, dr
                     })
                   }}
                   className={`flex flex-col items-stretch gap-0.5 rounded-md border px-1.5 py-1.5 text-left ${
-                    toFx
-                      ? 'border-[#39ff14]/40 bg-[#39ff14]/8 text-zinc-200'
-                      : 'border-zinc-800 bg-zinc-950/80 text-zinc-500'
+                    toFx ? u.wireOn : u.wireOff
                   }`}
                   aria-pressed={toFx}
                   title={toFx ? 'Sent through time and space' : 'Dry (no shared FX)'}
                 >
-                  <span className="text-[10px] font-medium text-zinc-300">
+                  <span className={u.wireLabel}>
                     {VOICE_SHORT[key] ?? key}
                   </span>
                   <span
-                    className={`text-[9px] font-mono uppercase tracking-wide ${
-                      toFx ? 'text-[#39ff14]/90' : 'text-zinc-600'
-                    }`}
+                    className={toFx ? u.wireTagOn : u.wireTagOff}
                   >
                     {toFx ? 'FX' : 'Dry'}
                   </span>

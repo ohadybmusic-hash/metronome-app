@@ -116,6 +116,11 @@ export function RotaryDial({ value, onChange, onTap, label = 'BPM', disabled = f
   const r = (size - stroke) / 2
   const circ = 2 * Math.PI * r
   const dash = circ * clamp(progress, 0, 1)
+  // Place the marker on the ring at the current dial angle.
+  // When angle = 0 → marker at top (cx=75, cy=75-r).
+  const ballR = r
+  const ballX = 75 + ballR * Math.sin(angle)
+  const ballY = 75 - ballR * Math.cos(angle)
 
   const commitText = () => {
     const raw = String(textValue || '').trim()
@@ -173,6 +178,7 @@ export function RotaryDial({ value, onChange, onTap, label = 'BPM', disabled = f
             r={r}
             strokeDasharray={`${dash} ${circ}`}
           />
+          <circle className="dial__ball" cx={ballX} cy={ballY} r="4" />
           <g transform={`translate(75 75) rotate(${(angle * 180) / Math.PI})`}>
             <rect className="dial__pointer" x="-2" y={-r + 6} width="4" height="18" rx="2" />
           </g>

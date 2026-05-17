@@ -12,6 +12,7 @@ import {
   listLibraryExerciseTitlesInOrder,
   listLibrarySectionChoices,
   userHasVisiblePracticeSheetLibrary,
+  PRACTICE_PDF_LIBRARIES,
 } from '../lib/practicePdfCategories.js'
 import {
   CUSTOM_VALUE,
@@ -21,6 +22,7 @@ import {
   parseOptNumber,
   resolveExercisePdfUrl,
 } from '../lib/exerciseProgressUi.js'
+import { practiceOb, practiceObsidianChrome } from '../lib/practiceObsidianUi.js'
 import PracticePdfLibrary from './PracticePdfLibrary.jsx'
 import CustomExerciseNamesPanel from './exerciseProgress/CustomExerciseNamesPanel.jsx'
 import LogSessionForm from './exerciseProgress/LogSessionForm.jsx'
@@ -30,10 +32,20 @@ import PracticeLogFilterSheetPreview from './exerciseProgress/PracticeLogFilterS
 import PracticeLogTableDesktop from './exerciseProgress/PracticeLogTableDesktop.jsx'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-export default function ExerciseProgress({ met, userId, exerciseRemote, exerciseProgressRef }) {
+export default function ExerciseProgress({ met, userId, exerciseRemote, exerciseProgressRef, visualLayout }) {
   const { user } = useAuth()
-  const practiceLogEnabled = userHasVisiblePracticeSheetLibrary(user?.email)
-  const visibleLibs = useMemo(() => getVisiblePracticePdfLibraries(user?.email), [user?.email])
+  const ob = visualLayout === 'obsidian'
+  const sw = visualLayout === 'synthwave'
+  const pOb = practiceObsidianChrome(visualLayout)
+  const isLocalhostPreview =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+
+  const practiceLogEnabled = isLocalhostPreview || userHasVisiblePracticeSheetLibrary(user?.email)
+  const visibleLibs = useMemo(() => {
+    if (isLocalhostPreview) return PRACTICE_PDF_LIBRARIES
+    return getVisiblePracticePdfLibraries(user?.email)
+  }, [isLocalhostPreview, user?.email])
   const presetExerciseNames = useMemo(
     () => (practiceLogEnabled ? listLibraryExerciseTitlesInOrder(visibleLibs) : null),
     [practiceLogEnabled, visibleLibs],
@@ -73,6 +85,14 @@ export default function ExerciseProgress({ met, userId, exerciseRemote, exercise
     presetExerciseNames,
     implicitCustomPlacement,
   })
+
+  const thisWeekCount = useMemo(() => {
+    const cutoff = Date.now() - 7 * 86400000
+    return entries.filter((e) => {
+      const t = e.date ? new Date(e.date).getTime() : NaN
+      return !Number.isNaN(t) && t >= cutoff
+    }).length
+  }, [entries])
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), [])
 
@@ -269,9 +289,17 @@ export default function ExerciseProgress({ met, userId, exerciseRemote, exercise
 
   if (!practiceLogEnabled) {
     return (
-      <div className="exerciseProgress">
+      <div
+        className={`exerciseProgress ${
+          ob
+            ? 'rounded-ds-lg border border-hairline bg-surface-container-low p-6 shadow-[var(--ds-shadow)]'
+            : sw
+              ? 'rounded-ds-lg border border-cyan-400/20 bg-surface-container-low/60 p-6 font-space-grotesk'
+              : ''
+        }`}
+      >
         <div className="text-xl font-semibold tracking-tight">Practice log</div>
-        <p className="mt-3 max-w-lg text-sm text-[var(--text)]">
+        <p className="mt-3 max-w-lg text-sm text-on-surface-variant">
           Session logs are tied to your sheet library. Sign in with the account that has course
           access to log practice against those PDFs. Without library access, no log entries are
           stored or shown.
@@ -282,139 +310,195 @@ export default function ExerciseProgress({ met, userId, exerciseRemote, exercise
 
   return (
     <div className="exerciseProgress">
-      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="text-xl font-semibold tracking-tight">Practice log</div>
-          <div className="mt-1 text-sm text-[var(--text)]">
-            Custom exercises must be saved via Manage list (Add custom exercise or Save in the form).
-            Then log sessions and attach PDF links as needed.
-            {userId ? ' Saved to your account (syncs with this device’s offline copy).' : null}
+      {ob ? (
+        <section className="mb-4 rounded-ds-lg border-t border-hairline bg-surface-container-low p-4 shadow-[var(--ds-shadow)]">
+          <p className="font-label-caps text-[10px] tracking-[0.2em] text-chrome/85">Practice log</p>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div className="rounded-ds border border-hairline bg-surface-container-lowest p-3">
+              <div className="text-[9px] font-bold uppercase tracking-widest text-chrome/70">Total sessions</div>
+              <div className="mt-1 font-mono text-2xl tabular-nums text-chrome">{entries.length}</div>
+            </div>
+            <div className="rounded-ds border border-hairline bg-surface-container-lowest p-3">
+              <div className="text-[9px] font-bold uppercase tracking-widest text-chrome/70">Last 7 days</div>
+              <div className="mt-1 font-mono text-2xl tabular-nums text-chrome">{thisWeekCount}</div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+      {sw ? (
+        <div className="mb-4 grid grid-cols-2 gap-2">
+          <div className="rounded-ds border border-cyan-400/25 bg-surface-container-low/40 p-3">
+            <div className="text-[9px] font-bold uppercase tracking-widest text-cyan-400/75">Sessions</div>
+            <div className="mt-1 font-mono text-2xl tabular-nums text-cyan-200/90">{entries.length}</div>
+          </div>
+          <div className="rounded-ds border border-cyan-400/25 bg-surface-container-low/40 p-3">
+            <div className="text-[9px] font-bold uppercase tracking-widest text-cyan-400/75">7-day</div>
+            <div className="mt-1 font-mono text-2xl tabular-nums text-cyan-200/90">{thisWeekCount}</div>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 self-start">
-          <button
-            type="button"
-            className="metronome__btn metronome__btn--primary"
-            onClick={() => {
-              setEditingId(null)
-              openManageWithDraft('')
-            }}
-          >
-            Add custom exercise
-          </button>
-          <button
-            type="button"
-            className="metronome__btn"
-            onClick={() => {
-              if (manageOpen) {
-                setManageOpen(false)
-                setManageDraftSyncKey(0)
-                setManageDraftInitial('')
-              } else {
-                setManageOpen(true)
-              }
-            }}
-          >
-            {manageOpen ? 'Close' : 'Manage'} list
-          </button>
-        </div>
-      </div>
-
-      <PracticePdfLibrary
-        visibleLibraries={visibleLibs}
-        customExerciseNames={customExerciseNames}
-        customExercisePlacements={customExercisePlacements}
-        sheetsByExercise={sheetsByExercise}
-      />
-
-      {manageOpen ? (
-        <CustomExerciseNamesPanel
-          customExerciseNames={customExerciseNames}
-          sectionChoices={sectionChoices}
-          visibleLibraries={visibleLibs}
-          draftSyncKey={manageDraftSyncKey}
-          draftInitialFromForm={manageDraftInitial}
-          onSuccessfulAddToList={() => setLogFormHint(null)}
-          onAddName={addCustomExerciseName}
-          onRemoveName={removeCustomExerciseName}
-        />
       ) : null}
 
-      <LogSessionForm
-        onSubmit={submit}
-        editingId={editingId}
-        onCancelEdit={resetForm}
-        date={date}
-        onDateChange={setDate}
-        exerciseSelect={exerciseSelect}
-        onExerciseSelectChange={setExerciseSelect}
-        exerciseOptions={exerciseOptions}
-        customNameInput={customNameInput}
-        onCustomNameInputChange={setCustomNameInput}
-        resolvedExerciseName={resolvedExerciseName}
-        sheetUrlDraft={sheetUrlDraft}
-        onSheetUrlDraftChange={setSheetUrlDraft}
-        onSaveSheetUrl={() => setSheetPdfUrl(resolvedExerciseName, sheetUrlDraft)}
-        onClearSavedSheet={() => {
-          setSheetPdfUrl(resolvedExerciseName, '')
-          const d = sheetDefaults[resolvedExerciseName]
-          setSheetUrlDraft(d && String(d).trim() ? String(d).trim() : '')
-        }}
-        formPdfSrc={formPdfSrc}
-        showFormPdf={showFormPdf}
-        onToggleFormPdf={() => setShowFormPdf((v) => !v)}
-        lastTempo={lastTempo}
-        onLastTempoChange={setLastTempo}
-        maxTempo={maxTempo}
-        onMaxTempoChange={setMaxTempo}
-        sets={sets}
-        onSetsChange={setSets}
-        accuracyRate={accuracyRate}
-        onAccuracyRateChange={setAccuracyRate}
-        notes={notes}
-        onNotesChange={setNotes}
-        bpm={bpm}
-        onCancelCustomExercise={cancelCustomExerciseMode}
-        onDeleteCustomExerciseFromList={deleteCurrentCustomFromList}
-        onSaveCustomOpensManage={() => {
-          const n = normalizeExerciseLabel(customNameInput)
-          if (!n) return
-          openManageWithDraft(n)
-        }}
-        onClearCustomNameInput={() => setCustomNameInput('')}
-        customNameIsOnSavedList={customNameIsOnSavedList}
-        logFormHint={logFormHint}
-      />
+      <div
+        className={
+          ob || sw
+            ? 'rounded-ds-lg border border-hairline bg-surface-container-lowest p-4 sm:p-5 shadow-[var(--ds-shadow)]'
+            : 'contents'
+        }
+      >
+        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            {ob || sw ? (
+              <div className="text-sm text-on-surface-variant">
+                Custom exercises: save via <strong>Manage list</strong>, then log sessions and attach PDFs.
+                {userId ? ' Synced with your account.' : null}
+              </div>
+            ) : (
+              <>
+                <div className="text-xl font-semibold tracking-tight">Practice log</div>
+                <div className="mt-1 text-sm text-on-surface-variant">
+                  Custom exercises must be saved via Manage list (Add custom exercise or Save in the form).
+                  Then log sessions and attach PDF links as needed.
+                  {userId ? ' Saved to your account (syncs with this device’s offline copy).' : null}
+                </div>
+              </>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2 self-start">
+            <button
+              type="button"
+              className={
+                pOb
+                  ? practiceOb.btnPrimary
+                  : 'metronome__btn metronome__btn--primary'
+              }
+              onClick={() => {
+                setEditingId(null)
+                openManageWithDraft('')
+              }}
+            >
+              Add custom exercise
+            </button>
+            <button
+              type="button"
+              className={pOb ? practiceOb.btnGhost : 'metronome__btn'}
+              onClick={() => {
+                if (manageOpen) {
+                  setManageOpen(false)
+                  setManageDraftSyncKey(0)
+                  setManageDraftInitial('')
+                } else {
+                  setManageOpen(true)
+                }
+              }}
+            >
+              {manageOpen ? 'Close' : 'Manage'} list
+            </button>
+          </div>
+        </div>
 
-      <PracticeLogFilterBar
-        filterExercise={filterExercise}
-        onFilterExerciseChange={setFilterExercise}
-        exerciseOptions={exerciseOptions}
-        entryCount={filteredEntries.length}
-      />
+        <PracticePdfLibrary
+          visibleLibraries={visibleLibs}
+          customExerciseNames={customExerciseNames}
+          customExercisePlacements={customExercisePlacements}
+          sheetsByExercise={sheetsByExercise}
+          visualLayout={visualLayout}
+        />
 
-      <PracticeLogFilterSheetPreview
-        filterExercise={filterExercise}
-        filterPdfSrc={filterPdfSrc}
-        showFilterPdf={showFilterPdf}
-        onToggleFilterPdf={() => setShowFilterPdf((v) => !v)}
-      />
+        {manageOpen ? (
+          <CustomExerciseNamesPanel
+            visualLayout={visualLayout}
+            customExerciseNames={customExerciseNames}
+            sectionChoices={sectionChoices}
+            visibleLibraries={visibleLibs}
+            draftSyncKey={manageDraftSyncKey}
+            draftInitialFromForm={manageDraftInitial}
+            onSuccessfulAddToList={() => setLogFormHint(null)}
+            onAddName={addCustomExerciseName}
+            onRemoveName={removeCustomExerciseName}
+          />
+        ) : null}
 
-      <PracticeLogTableDesktop
-        entries={filteredEntries}
-        resolvePdfUrl={resolveRowPdf}
-        formatDisplayDate={formatDisplayDate}
-        onEdit={loadEntryForEdit}
-        onDelete={onDelete}
-      />
+        <LogSessionForm
+          visualLayout={visualLayout}
+          onSubmit={submit}
+          editingId={editingId}
+          onCancelEdit={resetForm}
+          date={date}
+          onDateChange={setDate}
+          exerciseSelect={exerciseSelect}
+          onExerciseSelectChange={setExerciseSelect}
+          exerciseOptions={exerciseOptions}
+          customNameInput={customNameInput}
+          onCustomNameInputChange={setCustomNameInput}
+          resolvedExerciseName={resolvedExerciseName}
+          sheetUrlDraft={sheetUrlDraft}
+          onSheetUrlDraftChange={setSheetUrlDraft}
+          onSaveSheetUrl={() => setSheetPdfUrl(resolvedExerciseName, sheetUrlDraft)}
+          onClearSavedSheet={() => {
+            setSheetPdfUrl(resolvedExerciseName, '')
+            const d = sheetDefaults[resolvedExerciseName]
+            setSheetUrlDraft(d && String(d).trim() ? String(d).trim() : '')
+          }}
+          formPdfSrc={formPdfSrc}
+          showFormPdf={showFormPdf}
+          onToggleFormPdf={() => setShowFormPdf((v) => !v)}
+          lastTempo={lastTempo}
+          onLastTempoChange={setLastTempo}
+          maxTempo={maxTempo}
+          onMaxTempoChange={setMaxTempo}
+          sets={sets}
+          onSetsChange={setSets}
+          accuracyRate={accuracyRate}
+          onAccuracyRateChange={setAccuracyRate}
+          notes={notes}
+          onNotesChange={setNotes}
+          bpm={bpm}
+          onCancelCustomExercise={cancelCustomExerciseMode}
+          onDeleteCustomExerciseFromList={deleteCurrentCustomFromList}
+          onSaveCustomOpensManage={() => {
+            const n = normalizeExerciseLabel(customNameInput)
+            if (!n) return
+            openManageWithDraft(n)
+          }}
+          onClearCustomNameInput={() => setCustomNameInput('')}
+          customNameIsOnSavedList={customNameIsOnSavedList}
+          logFormHint={logFormHint}
+        />
 
-      <PracticeLogCardsMobile
-        entries={filteredEntries}
-        resolvePdfUrl={resolveRowPdf}
-        formatDisplayDate={formatDisplayDate}
-        onEdit={loadEntryForEdit}
-        onDelete={onDelete}
-      />
+        <PracticeLogFilterBar
+          visualLayout={visualLayout}
+          filterExercise={filterExercise}
+          onFilterExerciseChange={setFilterExercise}
+          exerciseOptions={exerciseOptions}
+          entryCount={filteredEntries.length}
+        />
+
+        <PracticeLogFilterSheetPreview
+          visualLayout={visualLayout}
+          filterExercise={filterExercise}
+          filterPdfSrc={filterPdfSrc}
+          showFilterPdf={showFilterPdf}
+          onToggleFilterPdf={() => setShowFilterPdf((v) => !v)}
+        />
+
+        <PracticeLogTableDesktop
+          visualLayout={visualLayout}
+          entries={filteredEntries}
+          resolvePdfUrl={resolveRowPdf}
+          formatDisplayDate={formatDisplayDate}
+          onEdit={loadEntryForEdit}
+          onDelete={onDelete}
+        />
+
+        <PracticeLogCardsMobile
+          visualLayout={visualLayout}
+          entries={filteredEntries}
+          resolvePdfUrl={resolveRowPdf}
+          formatDisplayDate={formatDisplayDate}
+          onEdit={loadEntryForEdit}
+          onDelete={onDelete}
+        />
+      </div>
     </div>
   )
 }

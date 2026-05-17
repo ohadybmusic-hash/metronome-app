@@ -1,18 +1,32 @@
+import { practiceOb, practiceObsidianChrome } from '../../lib/practiceObsidianUi.js'
+
 /**
  * Exercise filter dropdown + entry count.
  */
 export default function PracticeLogFilterBar({
+  visualLayout,
   filterExercise,
   onFilterExerciseChange,
   exerciseOptions,
   entryCount,
 }) {
+  const ob = practiceObsidianChrome(visualLayout)
   return (
-    <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <label className="metronome__label mb-0 max-w-md">
-        Filter by exercise
+    <div className={ob ? practiceOb.filterBar : 'mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'}>
+      <label
+        className={
+          ob
+            ? practiceOb.filterLabel
+            : 'metronome__label mb-0 max-w-md'
+        }
+      >
+        {ob ? (
+          <span className={practiceOb.fieldCaption}>Filter by exercise</span>
+        ) : (
+          'Filter by exercise'
+        )}
         <select
-          className="metronome__select"
+          className={ob ? `${practiceOb.control} w-full max-w-md` : 'metronome__select'}
           value={filterExercise}
           onChange={(e) => onFilterExerciseChange(e.target.value)}
         >
@@ -24,7 +38,7 @@ export default function PracticeLogFilterBar({
           ))}
         </select>
       </label>
-      <div className="text-xs text-[var(--text)]">{entryCount} entries</div>
+      <div className="text-xs text-on-surface-variant">{entryCount} entries</div>
     </div>
   )
 }

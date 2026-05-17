@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabasePublic } from '../lib/supabaseClient.js'
+import { scheduleIdleTask } from '../lib/scheduleIdle.js'
 
 /**
  * Polls the `system_status` table for admin banner / maintenance / song of the day.
@@ -25,10 +26,18 @@ export function useMetronomeSystemStatus() {
       }
       setSystemStatus(data ?? null)
     }
-    load()
-    const id = window.setInterval(load, 30000)
+    const cancelIdle = scheduleIdleTask(
+      () => {
+        if (!cancelled) void load()
+      },
+      { timeout: 4000 },
+    )
+    const id = window.setInterval(() => {
+      if (!cancelled) void load()
+    }, 30000)
     return () => {
       cancelled = true
+      cancelIdle()
       window.clearInterval(id)
     }
   }, [])

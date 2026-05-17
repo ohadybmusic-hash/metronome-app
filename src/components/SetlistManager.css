@@ -36,7 +36,7 @@
   margin: 0;
   font-size: 12px;
   line-height: 1.4;
-  color: var(--text);
+  color: var(--ds-on-surface-variant);
   opacity: 0.9;
 }
 
@@ -52,7 +52,7 @@
 }
 
 .setlistMgr__empty {
-  color: var(--text);
+  color: var(--ds-on-surface-variant);
   font-size: 13px;
   padding: 8px 2px;
 }
@@ -70,5 +70,59 @@
   .setlistMgr__toggle {
     justify-self: start;
   }
+}
+
+.setlistMgr__notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--ds-rounded-ds-lg, 4px);
+  border: 1px solid var(--ds-outline-variant);
+  background: var(--ds-surface-container);
+  color: var(--ds-on-surface);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.setlistMgr__noticeMsg {
+  flex: 1;
+}
+
+.setlistMgr__noticeDismiss {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--ds-outline);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  opacity: 0.7;
+}
+
+.setlistMgr__noticeDismiss:hover {
+  opacity: 1;
+}
+
+.setlistMgr--obsidian .metronome__toggle {
+  border-color: rgb(var(--ds-chrome-rgb) / 0.28);
+  color: var(--ds-on-surface-variant);
+}
+
+.setlistMgr--obsidian .metronome__toggle:has(input:checked) {
+  background: rgb(var(--ds-chrome-rgb) / 0.12);
+  border-color: rgb(var(--ds-chrome-rgb) / 0.45);
+  color: var(--ds-chrome-hover);
+}
+
+.setlistMgr--synthwave .metronome__toggle {
+  border-color: rgb(var(--ds-chrome-rgb) / 0.25);
+}
+
+.setlistMgr--synthwave .metronome__toggle:has(input:checked) {
+  background: rgb(var(--ds-primary-rgb) / 0.14);
+  border-color: rgb(var(--ds-primary-rgb) / 0.42);
+  color: var(--ds-primary-fixed-dim);
 }
 

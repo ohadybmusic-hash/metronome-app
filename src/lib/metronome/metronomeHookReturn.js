@@ -23,6 +23,11 @@ export function buildMetronomeHookReturn(p) {
     meterNumerator,
     sound,
     setSound,
+    clickVolume,
+    setClickVolume,
+    setExternalDrumBank,
+    externalDrumKitRef,
+    externalDrumSampleBuffersRef,
     hapticsEnabled,
     hapticsEnabledRef,
     setHapticsEnabled,
@@ -126,6 +131,12 @@ export function buildMetronomeHookReturn(p) {
     pulsesPerMeasure: meterNumerator,
     sound,
     setSound,
+    clickVolume,
+    setClickVolume: (v) => setClickVolume(Math.max(0, Math.min(1, Number(v) || 0))),
+    setExternalDrumBank,
+    // Refs exposed so the scheduler can read the latest bank without re-subscribing.
+    externalDrumKitRef,
+    externalDrumSampleBuffersRef,
     haptics: {
       enabled: hapticsEnabled,
       setEnabled: (v) => {

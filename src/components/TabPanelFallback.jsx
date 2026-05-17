@@ -2,7 +2,7 @@
 export default function TabPanelFallback() {
   return (
     <div
-      className="flex min-h-[40vh] items-center justify-center text-sm text-[var(--text)]"
+      className="flex min-h-[40vh] items-center justify-center text-sm text-on-surface-variant"
       role="status"
       aria-live="polite"
     >

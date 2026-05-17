@@ -1,9 +1,5 @@
-/* Neon green on deep black — email / password (custom inputs, no default chrome) */
+/* Email / password — Stitch DS (embedded in drawer + gate; follows global visual layout). */
 .auth {
-  --auth-neon: #39ff14;
-  --auth-bg: #050505;
-  --auth-neon-dim: rgba(57, 255, 20, 0.35);
-  --auth-glow: 0 0 12px rgba(57, 255, 20, 0.45), 0 0 28px rgba(57, 255, 20, 0.2);
   width: 100%;
   max-width: 100%;
   padding: 0;
@@ -17,21 +13,21 @@
   font-weight: 600;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--auth-neon);
-  text-shadow: 0 0 8px var(--auth-neon-dim);
+  color: var(--ds-primary-fixed-dim);
+  text-shadow: 0 0 10px rgb(var(--ds-primary-rgb) / 0.35);
 }
 
 .auth__toggleRow {
   display: flex;
   gap: 8px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--ds-on-surface-variant);
 }
 
 .auth__modeBtn {
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.45);
+  color: color-mix(in srgb, var(--ds-on-surface-variant) 65%, transparent);
   cursor: pointer;
   padding: 0;
   font: inherit;
@@ -40,8 +36,8 @@
   -webkit-tap-highlight-color: transparent;
 }
 .auth__modeBtn.is-on {
-  color: var(--auth-neon);
-  text-shadow: 0 0 6px var(--auth-neon-dim);
+  color: var(--ds-primary-fixed-dim);
+  text-shadow: 0 0 8px rgb(var(--ds-primary-rgb) / 0.35);
   text-decoration: none;
   font-weight: 600;
 }
@@ -62,7 +58,7 @@
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(57, 255, 20, 0.75);
+  color: color-mix(in srgb, var(--ds-primary-fixed-dim) 78%, transparent);
 }
 
 .auth__input {
@@ -71,39 +67,39 @@
   width: 100%;
   box-sizing: border-box;
   margin: 0;
-  background: var(--auth-bg);
-  color: #f0f0f0;
-  border: 1px solid var(--auth-neon);
+  background: var(--ds-surface-container-lowest);
+  color: var(--ds-on-surface);
+  border: 1px solid color-mix(in srgb, rgb(var(--ds-primary-rgb)) 42%, transparent);
   border-radius: 2px;
   padding: 12px 14px;
   font-size: 15px;
-  font-family: ui-monospace, 'Cascadia Code', 'SFMono-Regular', Menlo, monospace;
+  font-family: var(--ds-font-mono);
   line-height: 1.2;
   outline: none;
-  box-shadow: 0 0 0 0 rgba(57, 255, 20, 0.25);
+  box-shadow: 0 0 0 0 rgb(var(--ds-primary-rgb) / 0.2);
   transition: box-shadow 0.2s, border-color 0.2s;
 }
 
 .auth__input::placeholder {
-  color: rgba(255, 255, 255, 0.22);
+  color: color-mix(in srgb, var(--ds-on-surface) 35%, transparent);
 }
 
 .auth__input:hover {
-  border-color: #5dff3d;
-  box-shadow: 0 0 8px var(--auth-neon-dim);
+  border-color: color-mix(in srgb, rgb(var(--ds-primary-rgb)) 58%, transparent);
+  box-shadow: 0 0 10px rgb(var(--ds-primary-rgb) / 0.22);
 }
 
 .auth__input:focus {
-  border-color: var(--auth-neon);
-  box-shadow: var(--auth-glow);
+  border-color: rgb(var(--ds-primary-rgb));
+  box-shadow: 0 0 14px rgb(var(--ds-primary-rgb) / 0.35), 0 0 28px rgb(var(--ds-primary-rgb) / 0.15);
 }
 
 .auth__input:-webkit-autofill,
 .auth__input:-webkit-autofill:hover,
 .auth__input:-webkit-autofill:focus {
-  -webkit-text-fill-color: #f0f0f0;
-  -webkit-box-shadow: 0 0 0 32px #050505 inset;
-  box-shadow: 0 0 0 32px #050505 inset, var(--auth-glow);
+  -webkit-text-fill-color: var(--ds-on-surface);
+  -webkit-box-shadow: 0 0 0 32px var(--ds-surface-container-lowest) inset;
+  box-shadow: 0 0 0 32px var(--ds-surface-container-lowest) inset, 0 0 14px rgb(var(--ds-primary-rgb) / 0.35);
   transition: background-color 5000s ease 0s;
 }
 
@@ -112,24 +108,24 @@
   appearance: none;
   margin-top: 4px;
   padding: 12px 16px;
-  background: var(--auth-bg);
-  color: var(--auth-neon);
-  border: 1px solid var(--auth-neon);
+  background: var(--ds-surface-container-lowest);
+  color: var(--ds-primary-fixed-dim);
+  border: 1px solid rgb(var(--ds-primary-rgb));
   border-radius: 2px;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   cursor: pointer;
-  box-shadow: 0 0 16px var(--auth-neon-dim);
+  box-shadow: 0 0 14px rgb(var(--ds-primary-rgb) / 0.28);
   transition: box-shadow 0.2s, color 0.2s, background 0.2s;
   -webkit-tap-highlight-color: transparent;
 }
 
 .auth__submit:hover:not(:disabled) {
-  color: #050505;
-  background: var(--auth-neon);
-  box-shadow: var(--auth-glow);
+  color: var(--ds-on-primary);
+  background: rgb(var(--ds-primary-rgb));
+  box-shadow: 0 0 18px rgb(var(--ds-primary-rgb) / 0.45);
 }
 
 .auth__submit:disabled {
@@ -146,10 +142,10 @@
 }
 
 .auth__err {
-  color: #ff6b6b;
+  color: var(--ds-error);
 }
 .auth__info {
-  color: rgba(57, 255, 20, 0.88);
+  color: var(--ds-primary-fixed-dim);
 }
 .auth__infoBlock {
   display: flex;
@@ -163,7 +159,7 @@
 .auth__infoSub {
   font-size: 11px;
   line-height: 1.4;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--ds-on-surface-variant);
 }
 .auth__repeatedStack {
   margin: 0;
@@ -181,7 +177,7 @@
   padding: 0;
   background: none;
   border: none;
-  color: rgba(57, 255, 20, 0.85);
+  color: color-mix(in srgb, var(--ds-primary-fixed-dim) 88%, transparent);
   text-decoration: underline;
   text-underline-offset: 3px;
   font: inherit;
@@ -190,7 +186,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 .auth__resendBtn:hover:not(:disabled) {
-  color: #5dff3d;
+  color: var(--ds-primary-fixed-dim);
 }
 .auth__resendBtn:disabled {
   opacity: 0.45;
@@ -201,27 +197,27 @@
   font-size: 12px;
   line-height: 1.4;
   margin: 4px 0 0 0;
-  color: #ff6b6b;
+  color: var(--ds-error);
 }
 .auth__resendOk {
   font-size: 12px;
   line-height: 1.4;
   margin: 4px 0 0 0;
-  color: rgba(57, 255, 20, 0.75);
+  color: var(--ds-primary-fixed-dim);
 }
 .auth__details {
   font-size: 11px;
   line-height: 1.4;
-  color: rgba(255, 255, 255, 0.45);
-  border: 1px solid rgba(57, 255, 20, 0.2);
+  color: var(--ds-on-surface-variant);
+  border: 1px solid color-mix(in srgb, rgb(var(--ds-primary-rgb)) 22%, transparent);
   border-radius: 4px;
   padding: 6px 8px;
-  background: rgba(0, 0, 0, 0.25);
+  background: color-mix(in srgb, var(--ds-background) 88%, transparent);
 }
 .auth__details summary {
   cursor: pointer;
   list-style: none;
-  color: rgba(57, 255, 20, 0.65);
+  color: color-mix(in srgb, var(--ds-primary-fixed-dim) 78%, transparent);
   font-size: 11px;
 }
 .auth__details summary::-webkit-details-marker {
@@ -229,4 +225,85 @@
 }
 .auth__details p {
   margin: 6px 0 0 0;
+}
+
+/* Drawer auth when Visual layout = Light Studio — recessed fields + rack primary CTA (no neon glow). */
+.auth.auth--studio-light .auth__header {
+  color: var(--ds-primary);
+  text-shadow: none;
+}
+
+.auth.auth--studio-light .auth__toggleRow {
+  color: var(--ds-on-surface-variant);
+}
+
+.auth.auth--studio-light .auth__modeBtn.is-on {
+  color: var(--ds-primary);
+  text-shadow: none;
+}
+
+.auth.auth--studio-light .auth__label {
+  color: var(--ds-on-surface-variant);
+}
+
+.auth.auth--studio-light .auth__input {
+  min-height: 48px;
+  border-radius: 8px;
+  border: 1px solid var(--ds-outline-variant);
+  background: var(--ds-surface-container-low);
+  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+  padding: 12px 16px;
+}
+
+.auth.auth--studio-light .auth__input:hover {
+  border-color: var(--ds-outline);
+  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+}
+
+.auth.auth--studio-light .auth__input:focus {
+  border-color: var(--ds-primary);
+  box-shadow:
+    inset 0 2px 4px 0 rgba(0, 0, 0, 0.06),
+    0 0 0 1px var(--ds-primary);
+}
+
+.auth.auth--studio-light .auth__input:-webkit-autofill,
+.auth.auth--studio-light .auth__input:-webkit-autofill:hover,
+.auth.auth--studio-light .auth__input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 32px var(--ds-surface-container-low) inset;
+  box-shadow: 0 0 0 32px var(--ds-surface-container-low) inset;
+}
+
+.auth.auth--studio-light .auth__submit {
+  margin-top: 8px;
+  min-height: 48px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(180deg, #2e4057 0%, #172a40 100%);
+  color: #fff;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.auth.auth--studio-light .auth__submit:hover:not(:disabled) {
+  filter: brightness(1.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.auth.auth--studio-light .auth__resendBtn {
+  color: var(--ds-secondary);
+}
+
+.auth.auth--studio-light .auth__resendBtn:hover:not(:disabled) {
+  color: var(--ds-primary);
+}
+
+.auth.auth--studio-light .auth__info,
+.auth.auth--studio-light .auth__resendOk {
+  color: var(--ds-on-surface-variant);
+}
+
+.auth.auth--studio-light .auth__details summary {
+  color: var(--ds-secondary);
 }

@@ -50,20 +50,26 @@ export async function loadMetronomeVoiceNumberWavs(ctx, voiceBuffersRef) {
   if (voiceBuffersRef.current.status === 'loading') return
   if (voiceBuffersRef.current.status === 'ready') return
 
-  voiceBuffersRef.current.status = 'loading'
+  const controller = new AbortController()
+  voiceBuffersRef.current = { status: 'loading', controller, buffers: {} }
   const buffers = {}
   const max = 16
   try {
     for (let i = 1; i <= max; i += 1) {
-      const res = await fetch(`/voice/${i}.wav`)
+      const res = await fetch(`/voice/${i}.wav`, { signal: controller.signal })
       if (!res.ok) continue
       const arr = await res.arrayBuffer()
+      if (controller.signal.aborted) break
       // Safari needs a copy sometimes; decoding handles it.
       const buf = await ctx.decodeAudioData(arr)
       buffers[i] = buf
     }
     voiceBuffersRef.current = { status: 'ready', buffers }
-  } catch {
-    voiceBuffersRef.current = { status: 'error', buffers: {} }
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      voiceBuffersRef.current = { status: 'idle', buffers: {} }
+    } else {
+      voiceBuffersRef.current = { status: 'error', buffers: {} }
+    }
   }
 }

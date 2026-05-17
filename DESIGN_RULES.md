@@ -1,32 +1,37 @@
-# Metronome App — Design Rules v3 (Source of Truth)
+# Metronome App — Design Rules
+
+**Source of truth for colors, radii, motion:** Stitch tokens in `src/index.css` (`--ds-*` on `:root` per `data-visual-layout`) and Tailwind semantic colors in `tailwind.config.js`. The legacy `--bg`, `--text-h`, `--accent`, etc. palette below was **removed** — do not reintroduce parallel variables.
 
 ## Typography
 
-- **All text**: `Space Mono, ui-monospace, Consolas, monospace` — applied globally via `--mono`, `--sans`, `--heading`
-- No serif fonts. Monospace throughout.
-- Labels: uppercase + letter-spacing (3–5px). Numbers: tight letter-spacing (-2px to -5px).
+- **Body / UI**: `--ds-font-sans` (Inter; Space Grotesk on Synthwave shell).
+- **Mono**: `--ds-font-mono` — steppers, admin tables, dense labels.
+- **Headings**: `--ds-font-heading`.
+- Labels: uppercase + letter-spacing where Stitch mocks specify (`font-label-caps`, `font-meter-label`).
 
-## Palette (dark theme — default)
+## Palette
 
-| Token             | Value                            | Usage                           |
-|-------------------|----------------------------------|---------------------------------|
-| `--bg`            | `#0d0d0b`                        | Page background                 |
-| `--surface`       | `#141412`                        | Cards, drawer                   |
-| `--surface-2`     | `#1c1b18`                        | Elevated surfaces               |
-| `--text`          | `rgba(240,237,230,0.45)`         | Muted / secondary text          |
-| `--text-h`        | `#f0ede6`                        | Primary text                    |
-| `--border`        | `rgba(240,237,230,0.09)`         | Hairline borders (0.5px)        |
-| `--accent`        | `#c8440a`                        | Orange — primary accent         |
-| `--accent-bg`     | `rgba(200,68,10,0.10)`           | Tinted surface on accent items  |
-| `--accent-border` | `rgba(200,68,10,0.45)`           | Border on accent items          |
-| `--danger`        | `#ef4444`                        | Error / destructive             |
-| `--shadow`        | `0 2px 24px rgba(0,0,0,0.55)`   | Card shadow                     |
+Use Tailwind utilities (`bg-background`, `text-on-surface`, `border-hairline`, `text-primary`, …) or raw `--ds-*` in CSS that cannot use Tailwind. Layout-specific values live under `:root`, `:root[data-visual-layout='light']`, `:root[data-visual-layout='synthwave']`.
+
+## Shape & motion
+
+- **Radii**: `--ds-radius-sm` / `--ds-radius-md` / `--ds-radius-lg` (see `index.css`).
+- **Easing**: `--ds-motion-ease-out`.
+- **Elevation**: `--ds-shadow`.
+
+---
+
+_Legacy reference (obsolete — kept only for archeology):_
+
+## Old palette (removed)
+
+| Token             | Status |
+|-------------------|--------|
+| `--bg`, `--surface`, `--text`, `--text-h`, `--border`, `--accent*` | Removed — use `--ds-*` / Tailwind semantics |
 
 ## Shape
 
-- **Border radius**: `--r-sm: 4px` / `--r-md: 6px` / `--r-lg: 8px`  
-- Prefer sharp (0px) corners on major UI blocks; minimal rounding elsewhere.
-- No rounded pills except the streak badge.
+- **Border radius**: ~~`--r-sm`~~ → `--ds-radius-*`
 
 ## Layout
 

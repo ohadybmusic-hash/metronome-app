@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useId, useRef } from 'react'
 import { FILTER_MAX_HZ, FILTER_MIN_HZ, normToCutoff } from '../hooks/useSynth.js'
 
 const DRAG_PX = 9
@@ -52,9 +52,14 @@ function wrapDelta(d) {
   return d
 }
 
-export function FilterDial({ value, onChange, onUserGesture }) {
+/** @param {{ value: number, onChange: (n: number) => void, onUserGesture?: () => void, variant?: 'default' | 'lightLab' | 'obsidian' }} props */
+export function FilterDial({ value, onChange, onUserGesture, variant = 'default' }) {
   const svgRef = useRef(null)
   const dragRef = useRef(null)
+  const gid = useId().replace(/:/g, '')
+  const isLightLab = variant === 'lightLab'
+  const isObsidian = variant === 'obsidian'
+  const isStitchLabels = isLightLab || isObsidian
 
   const endA = ANGLE0 - A_SPAN * Math.max(0, Math.min(1, value))
   const track = describeArc(C, C, R, ANGLE0, ANGLE1)
@@ -144,18 +149,24 @@ export function FilterDial({ value, onChange, onUserGesture }) {
 
   return (
     <div className="flex h-full w-full max-w-md flex-col items-center justify-center gap-1 px-3">
-      <p className="text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+      <p
+        className={`text-center text-[10px] font-semibold uppercase tracking-[0.2em] ${
+          isStitchLabels ? 'text-on-surface-variant' : 'text-zinc-500'
+        }`}
+      >
         Filter cutoff
       </p>
       <div
-        className="flex w-full max-w-[18rem] items-end justify-between px-0.5 text-[10px] tabular-nums text-zinc-500"
+        className={`flex w-full max-w-[18rem] items-end justify-between px-0.5 text-[10px] tabular-nums ${
+          isStitchLabels ? 'text-on-surface-variant' : 'text-zinc-500'
+        }`}
         aria-hidden
       >
         <span title={`Minimum: ${minLabel}`} className="shrink-0 text-left">
           {minLabel}
         </span>
         <div className="min-w-0 flex-1 px-1 text-center">
-          <p className="text-[9px] uppercase tracking-wider text-zinc-600">
+          <p className={`text-[9px] uppercase tracking-wider ${isStitchLabels ? 'text-on-surface-variant' : 'text-zinc-600'}`}>
             range
           </p>
         </div>
@@ -163,7 +174,7 @@ export function FilterDial({ value, onChange, onUserGesture }) {
           {maxLabel}
         </span>
       </div>
-      <p className="text-2xl font-semibold tabular-nums tracking-tight text-zinc-100">
+      <p className={`text-2xl font-semibold tabular-nums tracking-tight ${isLightLab ? 'text-primary' : isObsidian ? 'text-chrome' : 'text-zinc-100'}`}>
         {hz}
       </p>
       <svg
@@ -171,7 +182,11 @@ export function FilterDial({ value, onChange, onUserGesture }) {
         viewBox={`0 0 ${VBW} ${VBH}`}
         className="max-h-[min(46vw,32vh)] w-full max-w-[min(92vw,320px)] select-none"
         style={{
-          filter: 'drop-shadow(0 0 24px rgba(57, 255, 20, 0.12))',
+          filter: isObsidian
+            ? 'drop-shadow(0 0 18px rgb(var(--ds-chrome-rgb) / 0.22))'
+            : isLightLab
+              ? undefined
+              : 'drop-shadow(0 0 24px rgba(57, 255, 20, 0.12))',
           touchAction: 'none',
         }}
         onPointerDown={onPointerDown}
@@ -199,24 +214,49 @@ export function FilterDial({ value, onChange, onUserGesture }) {
         }}
       >
         <defs>
-          <linearGradient id="neo" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#7bff5c" stopOpacity="1" />
-            <stop offset="0.5" stopColor="#39ff14" stopOpacity="1" />
-            <stop offset="1" stopColor="#1fa008" stopOpacity="0.95" />
-          </linearGradient>
-          <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="b" />
-            <feMerge>
-              <feMergeNode in="b" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
+          {isLightLab ? (
+            <linearGradient id={`${gid}-labArc`} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="rgb(var(--ds-primary-rgb))" stopOpacity="1" />
+              <stop offset="1" stopColor="var(--ds-secondary)" stopOpacity="1" />
+            </linearGradient>
+          ) : isObsidian ? (
+            <>
+              <linearGradient id={`${gid}-chromeArc`} x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stopColor="rgb(var(--ds-chrome-rgb))" stopOpacity="0.95" />
+                <stop offset="0.55" stopColor="rgb(var(--ds-primary-rgb))" stopOpacity="1" />
+                <stop offset="1" stopColor="rgb(var(--ds-chrome-rgb))" stopOpacity="0.85" />
+              </linearGradient>
+              <filter id={`${gid}-glowChrome`} x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="b" />
+                <feMerge>
+                  <feMergeNode in="b" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </>
+          ) : (
+            <>
+              <linearGradient id={`${gid}-neo`} x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stopColor="#7bff5c" stopOpacity="1" />
+                <stop offset="0.5" stopColor="#39ff14" stopOpacity="1" />
+                <stop offset="1" stopColor="#1fa008" stopOpacity="0.95" />
+              </linearGradient>
+              <filter id={`${gid}-glow`} x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="b" />
+                <feMerge>
+                  <feMergeNode in="b" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </>
+          )}
         </defs>
         <text
           x={t0x}
           y={t0y - 2}
           textAnchor="middle"
-          className="fill-zinc-600"
+          fill={isStitchLabels ? 'var(--ds-outline)' : undefined}
+          className={isStitchLabels ? undefined : 'fill-zinc-600'}
           style={{ fontSize: 8 }}
         >
           Min
@@ -225,7 +265,8 @@ export function FilterDial({ value, onChange, onUserGesture }) {
           x={t1x}
           y={t1y - 2}
           textAnchor="middle"
-          className="fill-zinc-600"
+          fill={isStitchLabels ? 'var(--ds-outline)' : undefined}
+          className={isStitchLabels ? undefined : 'fill-zinc-600'}
           style={{ fontSize: 8 }}
         >
           Max
@@ -233,55 +274,73 @@ export function FilterDial({ value, onChange, onUserGesture }) {
         <path
           d={describeArc(C, C, R + 14, ANGLE0, ANGLE1)}
           fill="none"
-          stroke="rgba(57, 255, 20, 0.08)"
+          stroke={
+            isLightLab
+              ? 'rgba(57, 91, 148, 0.14)'
+              : isObsidian
+                ? 'rgb(var(--ds-chrome-rgb) / 0.12)'
+                : 'rgba(57, 255, 20, 0.08)'
+          }
           strokeWidth="22"
           strokeLinecap="round"
         />
         <path
           d={track}
           fill="none"
-          stroke="rgba(32, 32, 38, 0.98)"
+          stroke={isLightLab ? 'var(--ds-outline-variant)' : isObsidian ? 'rgb(var(--ds-hairline-rgb) / 0.95)' : 'rgba(32, 32, 38, 0.98)'}
           strokeWidth={STROKE + 2}
           strokeLinecap="round"
         />
         <path
           d={track}
           fill="none"
-          stroke="rgba(55, 55, 64, 0.5)"
+          stroke={isLightLab ? '#edeef0' : isObsidian ? 'rgb(var(--ds-chrome-rgb) / 0.18)' : 'rgba(55, 55, 64, 0.5)'}
           strokeWidth={STROKE}
           strokeLinecap="round"
         />
         <path
           d={progress}
           fill="none"
-          stroke="url(#neo)"
+          stroke={
+            isLightLab ? `url(#${gid}-labArc)` : isObsidian ? `url(#${gid}-chromeArc)` : `url(#${gid}-neo)`
+          }
           strokeWidth={STROKE}
           strokeLinecap="round"
-          filter="url(#glow)"
+          filter={isLightLab ? undefined : isObsidian ? `url(#${gid}-glowChrome)` : `url(#${gid}-glow)`}
         />
         <circle
           cx={C + (R + 1) * Math.cos(ANGLE0)}
           cy={C + (R + 1) * Math.sin(ANGLE0)}
           r="3.5"
-          className="fill-zinc-600"
+          fill={isStitchLabels ? 'var(--ds-outline-variant)' : undefined}
+          className={isStitchLabels ? undefined : 'fill-zinc-600'}
         />
         <circle
           cx={C + (R + 1) * Math.cos(ANGLE1)}
           cy={C + (R + 1) * Math.sin(ANGLE1)}
           r="3.5"
-          className="fill-zinc-500"
+          fill={isStitchLabels ? 'var(--ds-outline)' : undefined}
+          className={isStitchLabels ? undefined : 'fill-zinc-500'}
         />
         <circle
           cx={hx}
           cy={hy}
           r={12}
-          fill="#0a0a0c"
-          stroke="#39ff14"
-          strokeWidth={2.5}
-          style={{ filter: 'drop-shadow(0 0 6px rgba(57, 255, 20, 0.4))' }}
+          fill={isLightLab ? 'rgb(var(--ds-primary-rgb))' : isObsidian ? 'var(--ds-surface-container-lowest)' : '#0a0a0c'}
+          stroke={isLightLab ? '#ffffff' : isObsidian ? 'rgb(var(--ds-chrome-rgb))' : '#39ff14'}
+          strokeWidth={isLightLab ? 2 : 2.5}
+          style={
+            isLightLab
+              ? { filter: 'drop-shadow(0 1px 2px rgb(0 0 0 / 0.12))' }
+              : isObsidian
+                ? { filter: 'drop-shadow(0 0 10px rgb(var(--ds-chrome-rgb) / 0.45))' }
+                : { filter: 'drop-shadow(0 0 6px rgba(57, 255, 20, 0.4))' }
+          }
         />
       </svg>
-      <p className="px-2 text-center text-[10px] leading-snug text-zinc-500">
+      <p
+        className={`px-2 text-center text-[10px] leading-snug ${isStitchLabels ? 'text-on-surface-variant' : 'text-zinc-500'}`}
+      >
         Tap a point to jump, or drag. Left is minimum cutoff, right is maximum.
       </p>
     </div>

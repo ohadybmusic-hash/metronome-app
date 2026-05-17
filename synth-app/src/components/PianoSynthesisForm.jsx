@@ -1,4 +1,5 @@
 import { DEFAULT_FX_SYNTH } from '../hooks/useSynth.js'
+import { synthChromeUi } from '../lib/synthChromeUi.js'
 import { EffectsBlock } from './EffectsBlock.jsx'
 import { PresetBlock } from './PresetBlock.jsx'
 import { OscPanel } from './SynthPartPanels.jsx'
@@ -31,7 +32,10 @@ export function PianoSynthesisForm({
   setOsc3,
   /** Slightly less bottom padding in the in-place panel. */
   compactBottom,
+  obsidianChrome = false,
+  synthwaveChrome = false,
 }) {
+  const u = synthChromeUi(obsidianChrome ? 'obsidian' : synthwaveChrome ? 'synthwave' : 'legacy')
   return (
     <>
       <PresetBlock
@@ -42,11 +46,11 @@ export function PianoSynthesisForm({
         applyFactorySynthPreset={applyFactorySynthPreset}
         activeFactoryPresetId={activeFactoryPresetId}
         onUserGesture={onUserGesture}
+        obsidianChrome={obsidianChrome}
+        synthwaveChrome={synthwaveChrome}
       />
-      <div className="mb-3 rounded-xl border border-zinc-800/80 bg-zinc-900/20 p-3">
-        <p className="mb-2 text-[10px] font-medium uppercase tracking-widest text-zinc-500">
-          Active part
-        </p>
+      <div className={`mb-3 ${u.panel}`}>
+        <p className={u.labelCaps}>Active part</p>
         <div className="flex flex-wrap gap-1.5">
           {Array.from({ length: partCount }, (_, i) => (
             <button
@@ -56,11 +60,7 @@ export function PianoSynthesisForm({
                 onUserGesture?.()
                 onActivePartChange(i)
               }}
-              className={`min-w-[2.5rem] rounded-md px-2.5 py-1.5 text-xs font-medium ${
-                activePartIndex === i
-                  ? 'bg-[#39ff14]/20 text-[#39ff14] ring-1 ring-[#39ff14]/50'
-                  : 'bg-zinc-900/80 text-zinc-300 ring-1 ring-zinc-800'
-              }`}
+              className={`min-w-[2.5rem] ${u.pill(activePartIndex === i)}`}
             >
               {i + 1}
             </button>
@@ -74,6 +74,8 @@ export function PianoSynthesisForm({
           onUserGesture={onUserGesture}
           drumKit={drumKit}
           setDrumKit={setDrumKit}
+          obsidianChrome={obsidianChrome}
+          synthwaveChrome={synthwaveChrome}
         />
       </div>
       <div className="space-y-3">
@@ -84,6 +86,8 @@ export function PianoSynthesisForm({
           osc={osc1}
           setOsc={setOsc1}
           onUserGesture={onUserGesture}
+          obsidianChrome={obsidianChrome}
+          synthwaveChrome={synthwaveChrome}
         />
         <OscPanel
           title="Oscillator 2"
@@ -93,6 +97,8 @@ export function PianoSynthesisForm({
           osc={osc2}
           setOsc={setOsc2}
           onUserGesture={onUserGesture}
+          obsidianChrome={obsidianChrome}
+          synthwaveChrome={synthwaveChrome}
         />
         <OscPanel
           title="Oscillator 3"
@@ -102,6 +108,8 @@ export function PianoSynthesisForm({
           osc={osc3}
           setOsc={setOsc3}
           onUserGesture={onUserGesture}
+          obsidianChrome={obsidianChrome}
+          synthwaveChrome={synthwaveChrome}
         />
       </div>
       <button
@@ -111,11 +119,11 @@ export function PianoSynthesisForm({
           resetAllParts()
           setFx({ ...DEFAULT_FX_SYNTH })
         }}
-        className={
-          compactBottom
-            ? 'mt-3 w-full rounded-lg border border-zinc-800 py-2 text-sm text-zinc-400'
-            : 'mt-4 w-full rounded-lg border border-zinc-800 py-2 text-sm text-zinc-400'
-        }
+        className={`w-full py-2 text-sm ${compactBottom ? 'mt-3' : 'mt-4'} ${
+          obsidianChrome
+            ? 'rounded-ds-lg border border-hairline text-on-surface-variant'
+            : 'rounded-lg border border-zinc-800 text-zinc-400'
+        }`}
       >
         Reset all parts and effects
       </button>

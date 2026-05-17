@@ -16,9 +16,9 @@ export default class SynthAppBoundary extends Component {
   render() {
     if (this.state.err) {
       return (
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 text-left">
-          <p className="text-sm font-medium text-[var(--text-h)]">Synth lab had a problem</p>
-          <p className="mt-2 text-xs text-[var(--text)] leading-relaxed">
+        <div className="rounded-2xl border border-hairline bg-surface-container-low p-6 text-left">
+          <p className="text-sm font-medium text-on-surface">Synth lab had a problem</p>
+          <p className="mt-2 text-xs text-on-surface-variant leading-relaxed">
             {String(this.state.err?.message || this.state.err)}
           </p>
         </div>

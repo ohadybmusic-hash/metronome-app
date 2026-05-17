@@ -1,22 +1,32 @@
 import { COMMON_WAVEFORMS } from '../lib/periodicWaves.js'
+import { synthChromeUi } from '../lib/synthChromeUi.js'
 import { Row } from './FormRow.jsx'
 
-export function Toggle({ label, pressed, onChange }) {
+export function Toggle({ label, pressed, onChange, obsidianChrome = false, synthwaveChrome = false }) {
+  const on = obsidianChrome
+    ? 'border-chrome/50 bg-chrome/10 text-chrome'
+    : synthwaveChrome
+      ? 'border-pink-500/60 bg-pink-500/12 text-pink-400 shadow-[0_0_12px_rgb(236_72_153_/_0.12)]'
+      : 'border-[#39ff14]/50 bg-[#39ff14]/10 text-[#39ff14]'
+  const off = obsidianChrome || synthwaveChrome
+    ? 'border-hairline bg-surface-container-low text-on-surface'
+    : 'border-zinc-800 bg-zinc-900/60 text-zinc-300'
+  const trackOn = obsidianChrome ? 'bg-chrome/40' : synthwaveChrome ? 'bg-pink-500/40' : 'bg-[#39ff14]/40'
+  const trackOff = obsidianChrome ? 'bg-on-surface-variant/40' : synthwaveChrome ? 'bg-surface-variant' : 'bg-zinc-700'
+
   return (
     <button
       type="button"
       onClick={onChange}
       aria-pressed={pressed}
       className={`flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm ${
-        pressed
-          ? 'border-[#39ff14]/50 bg-[#39ff14]/10 text-[#39ff14]'
-          : 'border-zinc-800 bg-zinc-900/60 text-zinc-300'
+        pressed ? on : off
       }`}
     >
       <span>{label}</span>
       <span
         className={`h-4 w-8 shrink-0 rounded-full p-0.5 transition ${
-          pressed ? 'bg-[#39ff14]/40' : 'bg-zinc-700'
+          pressed ? trackOn : trackOff
         }`}
       >
         <span
@@ -29,14 +39,14 @@ export function Toggle({ label, pressed, onChange }) {
   )
 }
 
-function AdsrBlock({ adsr, onAdsr }) {
+function AdsrBlock({ adsr, onAdsr, obsidianChrome = false, synthwaveChrome = false }) {
+  const u = synthChromeUi(obsidianChrome ? 'obsidian' : synthwaveChrome ? 'synthwave' : 'legacy')
   return (
     <div className="space-y-2.5">
-      <p className="text-[10px] font-medium uppercase tracking-widest text-zinc-500">
-        ADSR
-      </p>
+      <p className={u.labelCapsTight}>ADSR</p>
       <div className="space-y-2.5 pl-0">
         <Row
+          obsidianChrome={obsidianChrome}
           label="Attack (s)"
           value={adsr.attack}
           onChange={(v) => onAdsr({ ...adsr, attack: v })}
@@ -46,6 +56,7 @@ function AdsrBlock({ adsr, onAdsr }) {
           fmt={(v) => v.toFixed(2)}
         />
         <Row
+          obsidianChrome={obsidianChrome}
           label="Decay (s)"
           value={adsr.decay}
           onChange={(v) => onAdsr({ ...adsr, decay: v })}
@@ -55,6 +66,7 @@ function AdsrBlock({ adsr, onAdsr }) {
           fmt={(v) => v.toFixed(2)}
         />
         <Row
+          obsidianChrome={obsidianChrome}
           label="Sustain (level)"
           value={adsr.sustain}
           onChange={(v) => onAdsr({ ...adsr, sustain: v })}
@@ -64,6 +76,7 @@ function AdsrBlock({ adsr, onAdsr }) {
           fmt={(v) => v.toFixed(2)}
         />
         <Row
+          obsidianChrome={obsidianChrome}
           label="Release (s)"
           value={adsr.release}
           onChange={(v) => onAdsr({ ...adsr, release: v })}
@@ -77,12 +90,11 @@ function AdsrBlock({ adsr, onAdsr }) {
   )
 }
 
-function WfBlock({ value, onWaveform, onUserGesture }) {
+function WfBlock({ value, onWaveform, onUserGesture, obsidianChrome = false, synthwaveChrome = false }) {
+  const u = synthChromeUi(obsidianChrome ? 'obsidian' : synthwaveChrome ? 'synthwave' : 'legacy')
   return (
     <div>
-      <p className="mb-2 text-[10px] font-medium uppercase tracking-widest text-zinc-500">
-        Waveform
-      </p>
+      <p className={u.labelCaps}>Waveform</p>
       <div className="flex flex-wrap gap-2">
         {COMMON_WAVEFORMS.map((w) => (
           <button
@@ -92,11 +104,7 @@ function WfBlock({ value, onWaveform, onUserGesture }) {
               onUserGesture?.()
               onWaveform(w.id)
             }}
-            className={`max-w-full rounded-lg px-2 py-1.5 text-xs font-medium ${
-              value === w.id
-                ? 'bg-[#39ff14]/20 text-[#39ff14] ring-1 ring-[#39ff14]/50'
-                : 'bg-zinc-900/80 text-zinc-300 ring-1 ring-zinc-800'
-            }`}
+            className={`max-w-full rounded-lg px-2 py-1.5 text-xs font-medium ${u.pill(value === w.id)}`}
           >
             {w.label}
           </button>
@@ -115,36 +123,42 @@ export function OscPanel({
   setOsc,
   onUserGesture,
   isPrimary,
+  obsidianChrome = false,
+  synthwaveChrome = false,
 }) {
+  const u = synthChromeUi(obsidianChrome ? 'obsidian' : synthwaveChrome ? 'synthwave' : 'legacy')
+
   if (showEnable && !enabled) {
     return (
-      <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/20 p-3">
+      <div className={u.panel}>
         <div className="mb-1 flex items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-zinc-200">{title}</h3>
+          <h3 className={u.h3}>{title}</h3>
           <Toggle
             label="Off / On"
             pressed={!!enabled}
+            obsidianChrome={obsidianChrome}
+            synthwaveChrome={synthwaveChrome}
             onChange={() => {
               onUserGesture?.()
               onEnabledToggle?.()
             }}
           />
         </div>
-        <p className="text-[11px] text-zinc-600">
-          Off — turn on to mix this layer.
-        </p>
+        <p className={u.bodyDim}>Off — turn on to mix this layer.</p>
       </div>
     )
   }
 
   return (
-    <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/30 p-3">
+    <div className={u.panelMuted}>
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-zinc-200">{title}</h3>
+        <h3 className={u.h3}>{title}</h3>
         {showEnable ? (
           <Toggle
             label="On"
             pressed={!!enabled}
+            obsidianChrome={obsidianChrome}
+            synthwaveChrome={synthwaveChrome}
             onChange={() => {
               onUserGesture?.()
               onEnabledToggle?.()
@@ -159,16 +173,21 @@ export function OscPanel({
             setOsc((o) => ({ ...o, waveform: w }))
           }}
           onUserGesture={onUserGesture}
+          obsidianChrome={obsidianChrome}
+          synthwaveChrome={synthwaveChrome}
         />
       </div>
       <div className="mb-3">
         <AdsrBlock
           adsr={osc.adsr}
           onAdsr={(next) => setOsc((o) => ({ ...o, adsr: next }))}
+          obsidianChrome={obsidianChrome}
+          synthwaveChrome={synthwaveChrome}
         />
       </div>
       <div>
         <Row
+          obsidianChrome={obsidianChrome}
           label="Detune (cents)"
           value={osc.detune}
           onChange={(v) => {
@@ -180,11 +199,7 @@ export function OscPanel({
           step={1}
           fmt={(v) => `${v > 0 ? '+' : ''}${v}¢`}
         />
-        {isPrimary ? (
-          <p className="mt-1 text-[10px] text-zinc-600">
-            Fine pitch; 100¢ = one semitone.
-          </p>
-        ) : null}
+        {isPrimary ? <p className={`mt-1 ${u.bodyDim}`}>Fine pitch; 100¢ = one semitone.</p> : null}
       </div>
     </div>
   )

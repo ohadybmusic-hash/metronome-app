@@ -88,6 +88,11 @@ export function useMetronome(options = {}) {
   const [pulse, setPulse] = useState(0)
 
   const [sound, setSound] = useState('beep') // 'beep' | 'voiceNumbers' | 'voiceCount'
+  const [clickVolume, setClickVolume] = useState(1)
+
+  // Optional external drum bank (from Synth Lab): lets metronome sounds include drum synth + imported drum samples.
+  const externalDrumKitRef = useRef(null)
+  const externalDrumSampleBuffersRef = useRef(null)
 
   const [hapticsEnabled, setHapticsEnabled] = useState(false)
   const hapticsEnabledRef = useRef(false)
@@ -175,6 +180,7 @@ export function useMetronome(options = {}) {
   const meterRef = useRef(getMeter(timeSignature))
   const subdivisionRef = useRef(subdivision)
   const soundRef = useRef(sound)
+  const clickVolumeRef = useRef(clickVolume)
   const beatAccentsRef = useRef(beatAccents)
   const voiceBuffersRef = useRef({ status: 'idle', buffers: {} })
   const countBuffersRef = useRef({ status: 'idle', buffers: {} }) // 1..4
@@ -245,6 +251,8 @@ export function useMetronome(options = {}) {
     subdivisionRef,
     sound,
     soundRef,
+    clickVolume,
+    clickVolumeRef,
     beatAccents,
     beatAccentsRef,
     hapticsEnabled,
@@ -380,6 +388,9 @@ export function useMetronome(options = {}) {
       subdivisionRef,
       beatAccentsRef,
       soundRef,
+      clickVolumeRef,
+      externalDrumKitRef,
+      externalDrumSampleBuffersRef,
       pulseListenersRef,
       beatListenersRef,
       hapticsEnabledRef,
@@ -472,37 +483,50 @@ export function useMetronome(options = {}) {
     }
     /* eslint-enable react-hooks/set-state-in-effect */
 
-    void (async function load() {
-      const { data, error } = await fetchUserMetronomeDataRow(authedUserId)
+    let cancelScheduled = () => {}
+    const runFetch = () => {
       if (cancelled) return
-      if (error) {
-        if (!cached) {
-          onExerciseProgressLoadedOption?.(normalizeExerciseProgressPayload(null))
+      void (async function load() {
+        const { data, error } = await fetchUserMetronomeDataRow(authedUserId)
+        if (cancelled) return
+        if (error) {
+          if (!cached) {
+            onExerciseProgressLoadedOption?.(normalizeExerciseProgressPayload(null))
+          }
+          return
         }
-        return
-      }
 
-      userDataRowIdRef.current = data?.user_id ?? null
-      const s = getBootstrapStateFromUserDataContent(data?.data)
-      if (data?.data != null) {
-        writeUserDataContentCache(authedUserId, data.data)
-      }
-      setSongs(s.songs)
-      setSetlists(s.setlists)
-      setActiveSongId(s.activeSongId)
-      setActiveSetlistId(s.activeSetlistId)
-      setStreakCount(s.streakCount)
-      setLastPracticeDate(s.lastPracticeDate)
+        userDataRowIdRef.current = data?.user_id ?? null
+        const s = getBootstrapStateFromUserDataContent(data?.data)
+        if (data?.data != null) {
+          writeUserDataContentCache(authedUserId, data.data)
+        }
+        setSongs(s.songs)
+        setSetlists(s.setlists)
+        setActiveSongId(s.activeSongId)
+        setActiveSetlistId(s.activeSetlistId)
+        setStreakCount(s.streakCount)
+        setLastPracticeDate(s.lastPracticeDate)
 
-      onExerciseProgressLoadedOption?.(
-        practiceSheetLibraryAccess
-          ? normalizeExerciseProgressPayload(s.exerciseProgressRaw)
-          : normalizeExerciseProgressPayload(null),
-      )
-    })()
+        onExerciseProgressLoadedOption?.(
+          practiceSheetLibraryAccess
+            ? normalizeExerciseProgressPayload(s.exerciseProgressRaw)
+            : normalizeExerciseProgressPayload(null),
+        )
+      })()
+    }
+
+    if (cached && typeof requestIdleCallback !== 'undefined') {
+      const id = requestIdleCallback(runFetch, { timeout: 2500 })
+      cancelScheduled = () => cancelIdleCallback(id)
+    } else {
+      const id = window.setTimeout(runFetch, 0)
+      cancelScheduled = () => window.clearTimeout(id)
+    }
 
     return () => {
       cancelled = true
+      cancelScheduled()
     }
   }, [authedUserId, onExerciseProgressLoadedOption, practiceSheetLibraryAccess])
 
@@ -798,6 +822,14 @@ export function useMetronome(options = {}) {
     meterNumerator: meter.numerator,
     sound,
     setSound,
+    clickVolume,
+    setClickVolume,
+    setExternalDrumBank: ({ kit, sampleBuffers } = {}) => {
+      externalDrumKitRef.current = kit ?? null
+      externalDrumSampleBuffersRef.current = sampleBuffers ?? null
+    },
+    externalDrumKitRef,
+    externalDrumSampleBuffersRef,
     hapticsEnabled,
     hapticsEnabledRef,
     setHapticsEnabled,

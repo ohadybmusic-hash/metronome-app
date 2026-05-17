@@ -259,24 +259,30 @@ export function decodeFileToBuffer(ctx, file) {
  * @param {AudioNode} dest
  * @param {AudioBuffer} buffer
  * @param {number} t0
- * @param {{ level: number, rate: number }} p
+ * @param {{ level: number, rate: number, decayS?: number }} p
  */
 export function playBufferSample(ctx, dest, buffer, t0, p) {
   if (!buffer) return
   const level = Math.max(0, Math.min(1, Number(p.level) || 0.8))
   const rate = Math.max(0.25, Math.min(4, Number(p.rate) || 1))
+  const decayS = Math.max(0.03, Math.min(3, Number(p.decayS) || 0.35))
 
   const g = ctx.createGain()
   const src = ctx.createBufferSource()
   src.buffer = buffer
   src.playbackRate.setValueAtTime(rate, t0)
   g.gain.setValueAtTime(0, t0)
-  g.gain.linearRampToValueAtTime(level, t0 + 0.002)
+  const atk = 0.002
+  g.gain.linearRampToValueAtTime(level, t0 + atk)
+  // Exponential tail so "Decay" feels like an envelope on samples.
+  g.gain.exponentialRampToValueAtTime(0.00025, t0 + atk + decayS)
   const dur = buffer.duration / rate
   src.connect(g)
   g.connect(dest)
   src.start(t0)
-  src.stop(t0 + dur + 0.01)
+  // Stop once the envelope is effectively silent (or the buffer ends).
+  const stopAt = t0 + Math.min(dur + 0.01, atk + decayS + 0.12)
+  src.stop(stopAt)
 }
 
 /** Synthesis + pad index. Grid order: `DrumPadGrid` (row 1: crash|crash-ride; row 2: cowbell|ride; row 3: clap|hat; bottom: kick|snare). */

@@ -33,6 +33,7 @@ import {
   createInitialPart,
 } from '../lib/synthDefaults.js'
 import { getEffectiveReverbTuning } from '../lib/reverbTuning.js'
+import { DRUM_AUX_EDITOR_INDEX, playAuxDrumPad } from '../lib/drumArticulations.js'
 import { playDrumPad } from '../lib/drumSynthesis.js'
 import {
   ensureInstrumentPack,
@@ -66,6 +67,8 @@ export {
 
 export const FILTER_MIN_HZ = 80
 export const FILTER_MAX_HZ = 18000
+export const FILTER_MIN_Q = 0.35
+export const FILTER_MAX_Q = 14
 
 export function mtof(midi) {
   return 440 * 2 ** ((midi - 69) / 12)
@@ -79,6 +82,16 @@ export function normToCutoff(n) {
 export function cutoffToNorm(hz) {
   return (Math.log(hz) - Math.log(FILTER_MIN_HZ)) /
     (Math.log(FILTER_MAX_HZ) - Math.log(FILTER_MIN_HZ))
+}
+
+export function normToQ(n) {
+  const t = Math.max(0, Math.min(1, n))
+  return FILTER_MIN_Q * (FILTER_MAX_Q / FILTER_MIN_Q) ** t
+}
+
+export function qToNorm(q) {
+  const hz = Math.max(FILTER_MIN_Q, Math.min(FILTER_MAX_Q, Number(q) || FILTER_MIN_Q))
+  return (Math.log(hz) - Math.log(FILTER_MIN_Q)) / (Math.log(FILTER_MAX_Q) - Math.log(FILTER_MIN_Q))
 }
 
 let activeNoteCount = 0
@@ -215,6 +228,8 @@ export function useSynth() {
   const lastReverbKey = useRef(null)
   const initialFilterNorm = cutoffToNorm(5000)
   const filterNormRef = useRef(initialFilterNorm)
+  const initialFilterQNorm = qToNorm(0.7)
+  const filterQNormRef = useRef(initialFilterQNorm)
   const voicesRef = useRef(new Map())
   const partsRef = useRef(
     Array.from({ length: PART_COUNT }, () => createInitialPart()),
@@ -224,6 +239,7 @@ export function useSynth() {
 
   const [ready, setReady] = useState(false)
   const [filterNorm, setFilterNorm] = useState(initialFilterNorm)
+  const [filterQNorm, setFilterQNorm] = useState(initialFilterQNorm)
   const [fx, setFx] = useState({ ...DEFAULT_FX_SYNTH })
   const [parts, setParts] = useState(() =>
     Array.from({ length: PART_COUNT }, () => createInitialPart()),
@@ -234,6 +250,9 @@ export function useSynth() {
   )
   const [drumKit, setDrumKit] = useState(() => createInitialDrumKit())
   const [activeDrumIndex, setActiveDrumIndex] = useState(0)
+  // Master send amount for the shared FX bus (delay+reverb). 0 = dry only, 1 = full.
+  const [drumFxSend, setDrumFxSend] = useState(1)
+  const drumFxSendRef = useRef(1)
   const [drumSampleBuffers, setDrumSampleBuffers] = useState(
     createEmptyDrumSampleBuffers,
   )
@@ -259,6 +278,9 @@ export function useSynth() {
   useLayoutEffect(() => {
     drumKitRef.current = drumKit
   }, [drumKit])
+  useLayoutEffect(() => {
+    drumFxSendRef.current = drumFxSend
+  }, [drumFxSend])
   useLayoutEffect(() => {
     drumSampleBuffersRef.current = drumSampleBuffers
   }, [drumSampleBuffers])
@@ -301,7 +323,7 @@ export function useSynth() {
     const ctx = new AudioContext()
     const biquad = ctx.createBiquadFilter()
     biquad.type = 'lowpass'
-    biquad.Q.value = 0.7
+    biquad.Q.value = normToQ(filterQNormRef.current)
     biquad.frequency.value = normToCutoff(filterNormRef.current)
     const master = ctx.createGain()
     master.gain.value = 0.32
@@ -393,6 +415,17 @@ export function useSynth() {
     const c = ctxRef.current
     if (f && c) {
       f.frequency.setTargetAtTime(normToCutoff(t), c.currentTime, 0.02)
+    }
+  }, [])
+
+  const setFilterQFromNorm = useCallback((n) => {
+    const t = Math.max(0, Math.min(1, n))
+    filterQNormRef.current = t
+    setFilterQNorm(t)
+    const f = filterRef.current
+    const c = ctxRef.current
+    if (f && c) {
+      f.Q.setTargetAtTime(normToQ(t), c.currentTime, 0.02)
     }
   }, [])
 
@@ -557,10 +590,11 @@ export function useSynth() {
       parts,
       fx,
       filterNorm,
+      filterQNorm,
       activePartIndex,
       drumKit,
     })
-  }, [parts, fx, filterNorm, activePartIndex, drumKit])
+  }, [parts, fx, filterNorm, filterQNorm, activePartIndex, drumKit])
 
   const pushUndoSnapshot = useCallback(() => {
     if (applyingUndoRef.current) return
@@ -569,6 +603,7 @@ export function useSynth() {
         parts: partsRef.current,
         fx: fxStateRef.current,
         filterNorm: filterNormRef.current,
+        filterQNorm: filterQNormRef.current,
         activePartIndex: activePartIndexRef.current,
         drumKit: drumKitRef.current,
       })
@@ -587,11 +622,12 @@ export function useSynth() {
       setParts(n.parts)
       setFx(n.fx)
       setFilterFromNorm(n.filterNorm)
+      setFilterQFromNorm(n.filterQNorm)
       setActivePartIndex(n.activePartIndex)
       setDrumKit(n.drumKit)
       setDrumSampleBuffers(createEmptyDrumSampleBuffers())
     },
-    [setFilterFromNorm, pushUndoSnapshot],
+    [setFilterFromNorm, setFilterQFromNorm, pushUndoSnapshot],
   )
 
   const undoPresetSnapshot = useCallback(() => {
@@ -605,6 +641,7 @@ export function useSynth() {
       setParts(n.parts)
       setFx(n.fx)
       setFilterFromNorm(n.filterNorm)
+      setFilterQFromNorm(n.filterQNorm)
       setActivePartIndex(n.activePartIndex)
       setDrumKit(n.drumKit)
       setDrumSampleBuffers(createEmptyDrumSampleBuffers())
@@ -614,7 +651,7 @@ export function useSynth() {
     } finally {
       applyingUndoRef.current = false
     }
-  }, [setFilterFromNorm])
+  }, [setFilterFromNorm, setFilterQFromNorm])
 
   const [isRecording, setIsRecording] = useState(false)
 
@@ -684,18 +721,20 @@ export function useSynth() {
         parts: patch.parts,
         fx: { ...DEFAULT_FX_SYNTH, ...patch.fx },
         filterNorm: typeof patch.filterNorm === 'number' ? patch.filterNorm : 0.5,
+        filterQNorm: typeof patch.filterQNorm === 'number' ? patch.filterQNorm : qToNorm(0.7),
         activePartIndex: 0,
         drumKit: drumKitRef.current,
       })
       setParts(n.parts)
       setFx(n.fx)
       setFilterFromNorm(n.filterNorm)
+      setFilterQFromNorm(n.filterQNorm)
       setActivePartIndex(0)
       if (typeof factoryPresetId === 'string') {
         setActiveFactoryPresetId(factoryPresetId)
       }
     },
-    [setFilterFromNorm, pushUndoSnapshot],
+    [setFilterFromNorm, setFilterQFromNorm, pushUndoSnapshot],
   )
 
   const applyDrumStyle = useCallback(
@@ -710,7 +749,7 @@ export function useSynth() {
   )
 
   const triggerDrum = useCallback(
-    (padIndex) => {
+    (hit) => {
       ensureContext()
       const ctx = ctxRef.current
       const toFxN = drumToFxRef.current
@@ -719,19 +758,76 @@ export function useSynth() {
       if (!('mediaSession' in navigator) || !navigator.mediaSession.metadata) {
         setupMediaSession()
       }
+      const t0 = ctx.currentTime
+      const masterSend = Math.max(0, Math.min(1, Number(drumFxSendRef.current) || 0))
+      if (hit != null && typeof hit === 'object' && typeof hit.aux === 'string') {
+        const auxId = /** @type {import('../lib/drumArticulations.js').DrumAuxId} */ (hit.aux)
+        const illuIdx =
+          DRUM_AUX_EDITOR_INDEX[auxId] != null ? DRUM_AUX_EDITOR_INDEX[auxId] : 0
+
+        // Route aux hits through the same FX/direct decision as the correlated kit voice.
+        const key = VOICE_ORDER[illuIdx] ?? VOICE_ORDER[0]
+        const vox = drumKitRef.current?.[key]
+        const amtRaw =
+          vox && typeof vox.sendFxAmount === 'number'
+            ? vox.sendFxAmount
+            : vox && vox.sendFx === false
+              ? 0
+              : 1
+        const amt = Math.max(0, Math.min(1, (Number(amtRaw) || 0) * masterSend))
+        const dest =
+          amt <= 0
+            ? toDryN
+            : amt >= 1
+              ? toFxN
+              : (() => {
+                  // Split after synthesis/sample generation.
+                  const sum = ctx.createGain()
+                  sum.gain.value = 1
+                  const gFx = ctx.createGain()
+                  const gDry = ctx.createGain()
+                  gFx.gain.setValueAtTime(amt, t0)
+                  gDry.gain.setValueAtTime(1 - amt, t0)
+                  sum.connect(gFx)
+                  sum.connect(gDry)
+                  gFx.connect(toFxN)
+                  gDry.connect(toDryN)
+                  return sum
+                })()
+
+        playAuxDrumPad(ctx, dest, t0, drumKitRef.current, auxId)
+        return
+      }
+      const padIndex = typeof hit === 'number' ? hit : 0
       const i = Math.max(0, Math.min(DRUM_PAD_COUNT - 1, Math.floor(padIndex)))
       const key = VOICE_ORDER[i]
       const vox = drumKitRef.current?.[key]
-      const useFx = vox == null || vox.sendFx !== false
-      const dest = useFx ? toFxN : toDryN
-      playDrumPad(
-        ctx,
-        dest,
-        i,
-        ctx.currentTime,
-        drumKitRef.current,
-        drumSampleBuffersRef.current,
-      )
+      const amtRaw =
+        vox && typeof vox.sendFxAmount === 'number'
+          ? vox.sendFxAmount
+          : vox && vox.sendFx === false
+            ? 0
+            : 1
+      const amt = Math.max(0, Math.min(1, (Number(amtRaw) || 0) * masterSend))
+      const dest =
+        amt <= 0
+          ? toDryN
+          : amt >= 1
+            ? toFxN
+            : (() => {
+                const sum = ctx.createGain()
+                sum.gain.value = 1
+                const gFx = ctx.createGain()
+                const gDry = ctx.createGain()
+                gFx.gain.setValueAtTime(amt, t0)
+                gDry.gain.setValueAtTime(1 - amt, t0)
+                sum.connect(gFx)
+                sum.connect(gDry)
+                gFx.connect(toFxN)
+                gDry.connect(toDryN)
+                return sum
+              })()
+      playDrumPad(ctx, dest, i, t0, drumKitRef.current, drumSampleBuffersRef.current)
     },
     [ensureContext],
   )
@@ -744,6 +840,8 @@ export function useSynth() {
     analyser: analyserRef,
     filterNorm,
     setFilterFromNorm,
+    filterQNorm,
+    setFilterQFromNorm,
     fx,
     setFx,
     partCount: PART_COUNT,
@@ -770,6 +868,8 @@ export function useSynth() {
     setDrumKit,
     activeDrumIndex,
     setActiveDrumIndex,
+    drumFxSend,
+    setDrumFxSend,
     resetDrumKit,
     drumSampleBuffers,
     setDrumSample,

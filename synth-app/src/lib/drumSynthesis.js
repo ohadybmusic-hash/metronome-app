@@ -28,6 +28,28 @@ function num(x, d) {
   return Number.isFinite(n) ? n : d
 }
 
+function makeSoftClipper(ctx, drive = 1) {
+  const d = clamp(num(drive, 1), 0.5, 6)
+  const ws = ctx.createWaveShaper()
+  const n = 1024
+  const curve = new Float32Array(n)
+  for (let i = 0; i < n; i += 1) {
+    const x = (i / (n - 1)) * 2 - 1
+    // Smooth soft clip with drive. Keeps transients, adds harmonics.
+    const y = Math.tanh(x * d)
+    curve[i] = y
+  }
+  ws.curve = curve
+  ws.oversample = '4x'
+  return ws
+}
+
+function connectSaturated(ctx, src, dest, drive) {
+  const ws = makeSoftClipper(ctx, drive)
+  src.connect(ws)
+  ws.connect(dest)
+}
+
 /** @param {import('./drumKitDefaults.js').KickParams} p */
 export function playKick(ctx, dest, t0, p = DEFAULT_DRUM_KIT.kick) {
   const startHz = clamp(num(p.startHz, 150), 30, 500)
@@ -51,7 +73,7 @@ export function playKick(ctx, dest, t0, p = DEFAULT_DRUM_KIT.kick) {
     t0 + sweepS,
   )
   osc.connect(g)
-  g.connect(dest)
+  connectSaturated(ctx, g, dest, 2.2)
   osc.start(t0)
   const tStop = t0 + Math.max(0.12, bodyS) + 0.06
   osc.stop(tStop)
@@ -71,7 +93,7 @@ export function playSnare(ctx, dest, t0, p = DEFAULT_DRUM_KIT.snare) {
 
   const mix = ctx.createGain()
   mix.gain.setValueAtTime(level, t0)
-  mix.connect(dest)
+  connectSaturated(ctx, mix, dest, 1.8)
 
   const gBody = ctx.createGain()
   gBody.gain.setValueAtTime(0, t0)
@@ -125,7 +147,7 @@ export function playHiHat(ctx, dest, t0, p = DEFAULT_DRUM_KIT.hat) {
 
   src.connect(hp)
   hp.connect(g)
-  g.connect(dest)
+  connectSaturated(ctx, g, dest, 1.35)
   src.start(t0)
   src.stop(t0 + decayS + 0.06)
 }
@@ -169,7 +191,7 @@ export function playCowbell(ctx, dest, t0, p = DEFAULT_DRUM_KIT.cowbell) {
   out.gain.linearRampToValueAtTime(level, t0 + attackS)
   out.gain.exponentialRampToValueAtTime(0.0004, t0 + decayS)
   sum.connect(out)
-  out.connect(dest)
+  connectSaturated(ctx, out, dest, 1.45)
   o1.start(t0)
   o2.start(t0)
   o1.stop(t0 + decayS + 0.05)
@@ -201,7 +223,7 @@ export function playCrash1(ctx, dest, t0, p = DEFAULT_DRUM_KIT.crash1) {
 
   src.connect(bp)
   bp.connect(g)
-  g.connect(dest)
+  connectSaturated(ctx, g, dest, 1.25)
   src.start(t0)
   src.stop(t0 + decayS + 0.1)
 }
@@ -228,9 +250,142 @@ export function playClap(ctx, dest, t0, p = DEFAULT_DRUM_KIT.clap) {
 
   src.connect(bp)
   bp.connect(g)
-  g.connect(dest)
+  connectSaturated(ctx, g, dest, 1.55)
   src.start(t0)
   src.stop(t0 + decayS + 0.08)
+}
+
+/** Rim / side-stick: bright, very short click derived from snare tuning. */
+/** @param {import('./drumKitDefaults.js').SnareParams} p */
+export function playRimShot(ctx, dest, t0, p = DEFAULT_DRUM_KIT.snare) {
+  playSnare(ctx, dest, t0, {
+    ...p,
+    bodyHz: clamp(num(p.bodyHz, 200) * 1.55, 220, 520),
+    bodyLevel: clamp(num(p.bodyLevel, 0.38) * 0.12, 0, 0.11),
+    bodyDecayS: 0.022,
+    snapHz: clamp(num(p.snapHz, 1950) * 1.28, 2800, 7800),
+    snapQ: clamp(num(p.snapQ, 0.9) * 1.12, 0.45, 2.85),
+    noiseAttackS: 0.0001,
+    noiseDecayS: clamp(num(p.noiseDecayS, 0.2) * 0.24, 0.026, 0.095),
+    level: clamp(num(p.level, 0.82) * 0.9, 0.05, 0.96),
+  })
+}
+
+/**
+ * Melodic tom registers — sine-like “shell” from kick tuning (pitch + decay follow genre).
+ * @param {'hi' | 'mid' | 'lo'} tier
+ */
+/** @param {import('./drumKitDefaults.js').KickParams} kickP */
+export function playMelodicTom(ctx, dest, t0, kickP = DEFAULT_DRUM_KIT.kick, tier = 'mid') {
+  const kMul = tier === 'hi' ? { start: 1.42, end: 1.38, sweep: 0.4, body: 0.34, lvl: 0.64 } : tier === 'mid' ? { start: 1.05, end: 1.05, sweep: 0.48, body: 0.4, lvl: 0.7 } : { start: 0.78, end: 0.84, sweep: 0.55, body: 0.46, lvl: 0.76 }
+  const startHz = clamp(num(kickP.startHz, 150) * kMul.start, 70, 380)
+  let endHz = clamp(num(kickP.endHz, 40) * kMul.end, 40, 220)
+  if (endHz >= startHz * 0.98) endHz = Math.max(38, startHz * 0.48)
+  playKick(ctx, dest, t0, {
+    ...kickP,
+    startHz,
+    endHz,
+    sweepS: clamp(num(kickP.sweepS, 0.1) * kMul.sweep, 0.025, 0.09),
+    bodyS: clamp(num(kickP.bodyS, 0.32) * kMul.body, 0.055, 0.24),
+    attackS: Math.min(num(kickP.attackS, 0.003), 0.0018),
+    level: clamp(num(kickP.level, 0.92) * kMul.lvl, 0.08, 0.92),
+  })
+}
+
+/** Shaker-like grain from hat noise (very short, layered). */
+/** @param {import('./drumKitDefaults.js').HatParams} hatP */
+export function playShakerLayers(ctx, dest, t0, hatP = DEFAULT_DRUM_KIT.hat) {
+  const base = {
+    highpassHz: clamp(num(hatP.highpassHz, 7000) * 1.08, 6500, 15000),
+    q: clamp(num(hatP.q, 0.7) * 0.92, 0.12, 2.2),
+    attackS: Math.min(num(hatP.attackS, 0.0008), 0.00045),
+    decayS: Math.min(num(hatP.decayS, 0.1) * 0.26, 0.048),
+    level: clamp(num(hatP.level, 0.5) * 0.48, 0.04, 0.75),
+  }
+  playHiHat(ctx, dest, t0, { ...hatP, ...base })
+  playHiHat(ctx, dest, t0 + 0.013, {
+    ...hatP,
+    ...base,
+    level: base.level * 0.7,
+    highpassHz: clamp(base.highpassHz * 1.03, 2000, 15000),
+  })
+  playHiHat(ctx, dest, t0 + 0.027, {
+    ...hatP,
+    ...base,
+    level: base.level * 0.44,
+    decayS: base.decayS * 0.88,
+  })
+}
+
+/** Short bandpassed “burst” (not a closed hat). */
+/** @param {import('./drumKitDefaults.js').HatParams} hatP */
+export function playWideNoiseHit(ctx, dest, t0, hatP = DEFAULT_DRUM_KIT.hat) {
+  const src = ctx.createBufferSource()
+  src.buffer = getOrCreateNoiseBuffer(ctx)
+  const bp = ctx.createBiquadFilter()
+  bp.type = 'bandpass'
+  bp.frequency.value = clamp(num(hatP.highpassHz, 7000) * 0.42, 1100, 5200)
+  bp.Q.value = 0.42
+  const g = ctx.createGain()
+  const decayS = clamp(num(hatP.decayS, 0.1) * 0.38, 0.028, 0.11)
+  const level = clamp(num(hatP.level, 0.5) * 0.78, 0.05, 0.95)
+  g.gain.setValueAtTime(0, t0)
+  g.gain.linearRampToValueAtTime(level, t0 + 0.0007)
+  g.gain.exponentialRampToValueAtTime(0.00045, t0 + decayS)
+  src.connect(bp)
+  bp.connect(g)
+  g.connect(dest)
+  src.start(t0)
+  src.stop(t0 + decayS + 0.06)
+}
+
+/** Short chord-stab from clap band (brighter, tighter). */
+/** @param {import('./drumKitDefaults.js').ClapParams} clapP */
+export function playStabHit(ctx, dest, t0, clapP = DEFAULT_DRUM_KIT.clap) {
+  playClap(ctx, dest, t0, {
+    ...clapP,
+    bandHz: clamp(num(clapP.bandHz, 1500) * 1.45, 900, 6200),
+    q: clamp(num(clapP.q, 1.1) * 1.05, 0.35, 4),
+    attackS: Math.min(num(clapP.attackS, 0.001), 0.00055),
+    decayS: clamp(num(clapP.decayS, 0.12) * 0.42, 0.04, 0.22),
+    level: clamp(num(clapP.level, 0.7) * 0.96, 0.05, 1),
+  })
+}
+
+/** Pedal / foot chick — tiny hi-hat closure from hat voice. */
+/** @param {import('./drumKitDefaults.js').HatParams} hatP */
+export function playHatChick(ctx, dest, t0, hatP = DEFAULT_DRUM_KIT.hat) {
+  playHiHat(ctx, dest, t0, {
+    ...hatP,
+    attackS: 0.0001,
+    decayS: Math.min(0.032, num(hatP.decayS, 0.1) * 0.2),
+    highpassHz: clamp(num(hatP.highpassHz, 7000) * 1.02, 5000, 15000),
+    level: clamp(num(hatP.level, 0.5) * 0.52, 0.04, 0.8),
+  })
+}
+
+/** Short metallic click from cowbell tuning. */
+/** @param {import('./drumKitDefaults.js').CowbellParams} cbP */
+export function playPercCowClick(ctx, dest, t0, cbP = DEFAULT_DRUM_KIT.cowbell) {
+  playCowbell(ctx, dest, t0, {
+    ...cbP,
+    decayS: Math.min(0.065, num(cbP.decayS, 0.1) * 0.42),
+    attackS: Math.min(num(cbP.attackS, 0.0004), 0.0002),
+    level: clamp(num(cbP.level, 0.7) * 0.68, 0.06, 0.88),
+    secondMix: num(cbP.secondMix, 0.52) * 0.85,
+  })
+}
+
+/** Longer wash for “FX” pad — crash‑ride timbre, emphasised tail. */
+/** @param {import('./drumKitDefaults.js').HatParams} rideish */
+export function playFxWashPad(ctx, dest, t0, rideish = DEFAULT_DRUM_KIT.crashRide) {
+  playHiHat(ctx, dest, t0, {
+    ...rideish,
+    decayS: clamp(num(rideish.decayS, 0.55) * 1.18, 0.2, 1.05),
+    highpassHz: clamp(num(rideish.highpassHz, 4800) * 0.92, 2000, 14000),
+    level: clamp(num(rideish.level, 0.44) * 1.08, 0.05, 1),
+    q: clamp(num(rideish.q, 0.5) * 0.92, 0.1, 3),
+  })
 }
 
 function drumHapticKick() {
@@ -332,6 +487,7 @@ export function playDrumPad(ctx, dest, padIndex, t0, kit, sampleBuffers) {
     playBufferSample(ctx, dest, buf, t0, {
       level: num(voice.level, 0.8),
       rate: num(voice.sampleRate, 1),
+      decayS: num(voice.sampleDecayS, 0.35),
     })
     return
   }

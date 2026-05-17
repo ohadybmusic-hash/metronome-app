@@ -83,6 +83,7 @@ function mergeDrumKit(raw) {
       bodyS: num(k.bodyS, b.kick.bodyS),
       level: num(k.level, b.kick.level),
       sendFx: typeof k.sendFx === 'boolean' ? k.sendFx : b.kick.sendFx,
+      sendFxAmount: num(k.sendFxAmount, b.kick.sendFxAmount ?? 1),
     },
     snare: {
       ...b.snare,
@@ -99,6 +100,7 @@ function mergeDrumKit(raw) {
       noiseDecayS: num(s.noiseDecayS, num(s.decayS, b.snare.noiseDecayS)),
       level: num(s.level, b.snare.level),
       sendFx: typeof s.sendFx === 'boolean' ? s.sendFx : b.snare.sendFx,
+      sendFxAmount: num(s.sendFxAmount, b.snare.sendFxAmount ?? 1),
     },
     hat: {
       ...b.hat,
@@ -112,6 +114,7 @@ function mergeDrumKit(raw) {
       decayS: num(h.decayS, b.hat.decayS),
       level: num(h.level, b.hat.level),
       sendFx: typeof h.sendFx === 'boolean' ? h.sendFx : b.hat.sendFx,
+      sendFxAmount: num(h.sendFxAmount, b.hat.sendFxAmount ?? 1),
     },
     clap: {
       ...b.clap,
@@ -125,6 +128,7 @@ function mergeDrumKit(raw) {
       decayS: num(c.decayS, b.clap.decayS),
       level: num(c.level, b.clap.level),
       sendFx: typeof c.sendFx === 'boolean' ? c.sendFx : b.clap.sendFx,
+      sendFxAmount: num(c.sendFxAmount, b.clap.sendFxAmount ?? 1),
     },
     ride: {
       ...b.ride,
@@ -138,6 +142,7 @@ function mergeDrumKit(raw) {
       decayS: num(r.decayS, b.ride.decayS),
       level: num(r.level, b.ride.level),
       sendFx: typeof r.sendFx === 'boolean' ? r.sendFx : b.ride.sendFx,
+      sendFxAmount: num(r.sendFxAmount, b.ride.sendFxAmount ?? 1),
     },
     crashRide: {
       ...b.crashRide,
@@ -151,6 +156,7 @@ function mergeDrumKit(raw) {
       decayS: num(cr.decayS, b.crashRide.decayS),
       level: num(cr.level, b.crashRide.level),
       sendFx: typeof cr.sendFx === 'boolean' ? cr.sendFx : b.crashRide.sendFx,
+      sendFxAmount: num(cr.sendFxAmount, b.crashRide.sendFxAmount ?? 1),
     },
     cowbell: {
       ...b.cowbell,
@@ -165,6 +171,7 @@ function mergeDrumKit(raw) {
       decayS: num(cb.decayS, b.cowbell.decayS),
       level: num(cb.level, b.cowbell.level),
       sendFx: typeof cb.sendFx === 'boolean' ? cb.sendFx : b.cowbell.sendFx,
+      sendFxAmount: num(cb.sendFxAmount, b.cowbell.sendFxAmount ?? 1),
     },
     crash1: {
       ...b.crash1,
@@ -178,6 +185,7 @@ function mergeDrumKit(raw) {
       decayS: num(x1.decayS, b.crash1.decayS),
       level: num(x1.level, b.crash1.level),
       sendFx: typeof x1.sendFx === 'boolean' ? x1.sendFx : b.crash1.sendFx,
+      sendFxAmount: num(x1.sendFxAmount, b.crash1.sendFxAmount ?? 1),
     },
   }
 }
@@ -202,6 +210,7 @@ export function normalizePresetData(raw) {
     fx.reverbDiffusion = 0.5
   }
   const filterNorm = clamp01(num(raw.filterNorm, 0.5))
+  const filterQNorm = clamp01(num(raw.filterQNorm, 0.5))
   let ap = Math.floor(num(raw.activePartIndex, 0))
   if (!Number.isFinite(ap)) ap = 0
   ap = Math.max(0, Math.min(PART_COUNT - 1, ap))
@@ -212,17 +221,19 @@ export function normalizePresetData(raw) {
     parts,
     fx,
     filterNorm,
+    filterQNorm,
     activePartIndex: ap,
     drumKit,
   }
 }
 
-export function buildSnapshot({ parts, fx, filterNorm, activePartIndex, drumKit }) {
+export function buildSnapshot({ parts, fx, filterNorm, filterQNorm, activePartIndex, drumKit }) {
   return {
     v: PRESET_DATA_VERSION,
     parts: JSON.parse(JSON.stringify(parts)),
     fx: { ...fx },
     filterNorm: clamp01(filterNorm),
+    filterQNorm: clamp01(typeof filterQNorm === 'number' ? filterQNorm : 0.5),
     activePartIndex: Math.max(
       0,
       Math.min(PART_COUNT - 1, Math.floor(activePartIndex) || 0),

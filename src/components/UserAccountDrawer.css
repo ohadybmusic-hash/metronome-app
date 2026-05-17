@@ -152,3 +152,201 @@
   padding: 0;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* Obsidian — teal/chrome slide-over (Stitch account modules). */
+.userDrawer__backdropObsidian {
+  background: rgb(5 6 8 / 0.74);
+}
+
+.userDrawer__panel--obsidian {
+  background: var(--ds-surface-container-lowest);
+  border-left: 1px solid rgb(var(--ds-chrome-rgb) / 0.38);
+  box-shadow: -6px 0 36px rgba(0, 0, 0, 0.55), 0 0 24px rgb(var(--ds-chrome-rgb) / 0.06);
+}
+
+.userDrawer__panel--obsidian .userDrawer__head {
+  background: var(--ds-surface-container-low);
+  border-bottom: 1px solid rgb(var(--ds-chrome-rgb) / 0.22);
+}
+
+.userDrawer__panel--obsidian .userDrawer__title {
+  color: rgb(var(--ds-chrome-rgb) / 1);
+  text-shadow: 0 0 12px rgb(var(--ds-chrome-rgb) / 0.35);
+  letter-spacing: 0.18em;
+}
+
+.userDrawer__panel--obsidian .userDrawer__close {
+  background: var(--ds-surface-container-low);
+  border: 1px solid rgb(var(--ds-chrome-rgb) / 0.4);
+  color: rgb(var(--ds-chrome-rgb) / 1);
+  border-radius: 4px;
+  box-shadow: 0 0 10px rgb(var(--ds-chrome-rgb) / 0.12);
+}
+
+.userDrawer__panel--obsidian .userDrawer__close:hover,
+.userDrawer__panel--obsidian .userDrawer__close:focus-visible {
+  border-color: var(--ds-chrome-hover);
+  box-shadow: 0 0 14px rgb(var(--ds-chrome-rgb) / 0.28);
+}
+
+.userDrawer__panel--obsidian .userDrawer__meta {
+  color: var(--ds-on-surface-variant);
+}
+
+.userDrawer__panel--obsidian .userDrawer__email {
+  color: var(--ds-on-background);
+}
+
+.userDrawer__panel--obsidian .userDrawer__guest {
+  color: var(--ds-on-surface-variant);
+}
+
+.userDrawer__panel--obsidian .userDrawer__signOut {
+  background: transparent;
+  color: rgb(var(--ds-chrome-rgb) / 1);
+  border: 1px solid rgb(var(--ds-chrome-rgb) / 0.48);
+  border-radius: 4px;
+  box-shadow: 0 0 14px rgb(var(--ds-chrome-rgb) / 0.12);
+}
+
+.userDrawer__panel--obsidian .userDrawer__signOut:hover:not(:disabled) {
+  background: rgb(var(--ds-chrome-rgb) / 0.1);
+  color: var(--ds-chrome-hover);
+  box-shadow: 0 0 18px rgb(var(--ds-chrome-rgb) / 0.22);
+}
+
+.userDrawer__panel--obsidian .userDrawer__linkBtn {
+  color: var(--ds-chrome-hover);
+}
+
+/* Light Studio — rack-style slide-over (matches Stitch account chrome). */
+.userDrawer__backdropLight {
+  background: rgba(25, 28, 30, 0.35);
+}
+
+.userDrawer__panel--light {
+  background: var(--ds-background);
+  border-left: 1px solid var(--ds-outline-variant);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.1);
+}
+
+.userDrawer__panel--light .userDrawer__head {
+  background: var(--ds-surface-container-lowest);
+  border-bottom-color: var(--ds-outline-variant);
+}
+
+.userDrawer__panel--light .userDrawer__title {
+  color: var(--ds-primary);
+  text-shadow: none;
+  letter-spacing: 0.14em;
+}
+
+.userDrawer__panel--light .userDrawer__close {
+  background: var(--ds-surface-container-low);
+  border: 1px solid var(--ds-outline-variant);
+  color: var(--ds-on-surface);
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.userDrawer__panel--light .userDrawer__close:hover,
+.userDrawer__panel--light .userDrawer__close:focus-visible {
+  border-color: var(--ds-primary);
+  box-shadow: none;
+}
+
+.userDrawer__panel--light .userDrawer__meta {
+  color: var(--ds-on-surface-variant);
+}
+
+.userDrawer__panel--light .userDrawer__email {
+  color: var(--ds-on-surface);
+}
+
+.userDrawer__panel--light .userDrawer__guest {
+  color: var(--ds-on-surface-variant);
+}
+
+.userDrawer__panel--light .userDrawer__signOut {
+  background: linear-gradient(180deg, #2e4057 0%, #172a40 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.userDrawer__panel--light .userDrawer__signOut:hover:not(:disabled) {
+  filter: brightness(1.05);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+}
+
+.userDrawer__panel--light .userDrawer__linkBtn {
+  color: var(--ds-secondary);
+}
+
+/* Synthwave — magenta/cyan slide-over (Stitch Account final). */
+.userDrawer__backdropSynthwave {
+  background: rgb(14 14 30 / 0.72);
+}
+
+.userDrawer__panel--synthwave {
+  background: var(--ds-surface-container-lowest);
+  border-left: 1px solid rgb(var(--ds-chrome-rgb) / 0.45);
+  box-shadow: -4px 0 32px rgb(var(--ds-primary-rgb) / 0.12), 0 0 40px rgb(var(--ds-chrome-rgb) / 0.08);
+}
+
+.userDrawer__panel--synthwave .userDrawer__head {
+  border-bottom-color: rgb(var(--ds-chrome-rgb) / 0.22);
+  background: rgb(14 14 30 / 0.5);
+}
+
+.userDrawer__panel--synthwave .userDrawer__title {
+  color: var(--ds-primary-fixed-dim);
+  text-shadow: 0 0 12px rgb(var(--ds-primary-rgb) / 0.45);
+  letter-spacing: 0.18em;
+}
+
+.userDrawer__panel--synthwave .userDrawer__close {
+  background: var(--ds-surface-container-low);
+  border: 1px solid rgb(var(--ds-chrome-rgb) / 0.35);
+  color: var(--ds-secondary-fixed-dim);
+  border-radius: 6px;
+  box-shadow: 0 0 10px rgb(var(--ds-chrome-rgb) / 0.12);
+}
+
+.userDrawer__panel--synthwave .userDrawer__close:hover,
+.userDrawer__panel--synthwave .userDrawer__close:focus-visible {
+  border-color: var(--ds-primary-fixed-dim);
+  box-shadow: 0 0 14px rgb(var(--ds-primary-rgb) / 0.25);
+}
+
+.userDrawer__panel--synthwave .userDrawer__meta {
+  color: var(--ds-on-surface-variant);
+}
+
+.userDrawer__panel--synthwave .userDrawer__email {
+  color: var(--ds-on-background);
+}
+
+.userDrawer__panel--synthwave .userDrawer__guest {
+  color: var(--ds-on-surface-variant);
+}
+
+.userDrawer__panel--synthwave .userDrawer__signOut {
+  background: var(--ds-primary-container);
+  color: var(--ds-on-primary-container);
+  border: 1px solid rgb(var(--ds-primary-rgb) / 0.55);
+  border-radius: 8px;
+  box-shadow: 0 0 18px rgb(var(--ds-primary-rgb) / 0.22);
+}
+
+.userDrawer__panel--synthwave .userDrawer__signOut:hover:not(:disabled) {
+  filter: brightness(1.08);
+  color: var(--ds-on-primary-container);
+  box-shadow: 0 0 22px rgb(var(--ds-chrome-rgb) / 0.22);
+}
+
+.userDrawer__panel--synthwave .userDrawer__linkBtn {
+  color: var(--ds-secondary-fixed-dim);
+}

@@ -1,52 +1,6 @@
 /* ─────────────────────────────────────────────
-   Metronome.css  —  v3 design (Space Mono, dark, orange accent)
-   Relies on CSS variables from index.css for non-overridden tokens.
+   Metronome.css — Stitch DS (`--ds-*` + rgb tokens). Inherits document layout vars.
 ───────────────────────────────────────────── */
-
-/* ── Override palette tokens for v3 ── */
-:root,
-:root[data-theme='dark'] {
-  --bg:            #0d0d0b;
-  --surface:       #141412;
-  --surface-2:     #1c1b18;
-  --text:          rgba(240, 237, 230, 0.45);
-  --text-h:        #f0ede6;
-  --border:        rgba(240, 237, 230, 0.09);
-  --accent:        #c8440a;
-  --accent-bg:     rgba(200, 68, 10, 0.10);
-  --accent-border: rgba(200, 68, 10, 0.45);
-  --danger:        #ef4444;
-  --danger-bg:     rgba(239, 68, 68, 0.12);
-  --danger-border: rgba(239, 68, 68, 0.55);
-  --shadow:        0 2px 24px rgba(0, 0, 0, 0.55);
-  --mono:          'Space Mono', ui-monospace, Consolas, monospace;
-  --sans:          'Space Mono', ui-monospace, Consolas, monospace;
-  --heading:       'Space Mono', ui-monospace, Consolas, monospace;
-  --r-sm:          4px;
-  --r-md:          6px;
-  --r-lg:          8px;
-}
-
-:root[data-theme='light'] {
-  --bg:            #f5f2ec;
-  --surface:       #edeae3;
-  --surface-2:     #e4e0d8;
-  --text:          rgba(26, 24, 20, 0.45);
-  --text-h:        #1a1814;
-  --border:        rgba(26, 24, 20, 0.10);
-  --accent:        #c8440a;
-  --accent-bg:     rgba(200, 68, 10, 0.08);
-  --accent-border: rgba(200, 68, 10, 0.35);
-}
-
-/* ── Top accent bar ── */
-.metronome::before {
-  content: '';
-  display: block;
-  height: 3px;
-  background: linear-gradient(to right, #c8440a, rgba(200, 68, 10, 0.15));
-  margin-bottom: 0;
-}
 
 /* ── Base layout ── */
 .metronome {
@@ -57,9 +11,9 @@
   padding: 0;
   display: grid;
   gap: 0;
-  font-family: var(--mono);
-  background: var(--bg);
-  min-height: 100dvh;
+  font-family: var(--ds-font-sans);
+  background: transparent;
+  min-height: 0;
   overflow-x: hidden;
 }
 
@@ -82,30 +36,30 @@
   z-index: 9998;
   display: grid;
   place-items: center;
-  font-family: var(--mono);
+  font-family: var(--ds-font-sans);
   font-weight: 700;
   letter-spacing: -2px;
   font-size: clamp(44px, 9vw, 96px);
-  color: var(--text-h);
-  background: color-mix(in srgb, var(--bg) 75%, transparent);
+  color: var(--ds-on-surface);
+  background: color-mix(in srgb, var(--ds-background) 75%, transparent);
   backdrop-filter: blur(8px);
   pointer-events: none;
 }
 
 /* ── Status banner ── */
 .metronome__status {
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  border-bottom: 1px solid var(--ds-outline-variant);
+  background: var(--ds-surface-container-low);
   padding: 8px 20px;
   display: flex;
   gap: 10px;
   align-items: baseline;
-  color: var(--text-h);
+  color: var(--ds-on-surface);
   font-size: 11px;
   letter-spacing: 1px;
 }
 .metronome__status--warn  { border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.06); }
-.metronome__status--muted { color: var(--text); }
+.metronome__status--muted { color: var(--ds-on-surface-variant); }
 
 /* ── Header ── */
 .metronome__header {
@@ -122,7 +76,7 @@
   font-weight: 400;
   letter-spacing: 5px;
   text-transform: uppercase;
-  color: var(--text);
+  color: var(--ds-on-surface-variant);
 }
 
 .metronome__subtitle {
@@ -144,10 +98,10 @@
   font-size: 9px;
   letter-spacing: 2px;
   text-transform: uppercase;
-  color: var(--text);
+  color: var(--ds-on-surface-variant);
   cursor: pointer;
   padding: 5px 10px;
-  border: 0.5px solid var(--border);
+  border: 0.5px solid var(--ds-outline-variant);
   user-select: none;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
@@ -157,9 +111,9 @@
 }
 
 .metronome__toggle:has(input:checked) {
-  background: var(--accent-bg);
-  border-color: var(--accent-border);
-  color: var(--accent);
+  background: color-mix(in srgb, rgb(var(--ds-primary-rgb)) 14%, transparent);
+  border-color: color-mix(in srgb, rgb(var(--ds-primary-rgb)) 42%, transparent);
+  color: rgb(var(--ds-primary-rgb));
 }
 
 .metronome__toggle--inline {
@@ -168,7 +122,7 @@
   font-size: 12px;
   letter-spacing: 0;
   text-transform: none;
-  color: var(--text-h);
+  color: var(--ds-on-surface);
 }
 
 .metronome__toggle--inline input {
@@ -183,25 +137,25 @@
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  border: 0.5px solid var(--border);
-  color: var(--text);
+  border: 0.5px solid var(--ds-outline-variant);
+  color: var(--ds-on-surface-variant);
   font-size: 10px;
   letter-spacing: 1px;
 }
 .metronome__streakFlame { font-size: 12px; }
-.metronome__streakNum  { font-weight: 700; color: var(--text-h); }
+.metronome__streakNum  { font-weight: 700; color: var(--ds-on-surface); }
 
 /* ── Cloud button ── */
 .metronome__cloudBtn {
   width: 34px; height: 34px;
-  border: 0.5px solid var(--border);
+  border: 0.5px solid var(--ds-outline-variant);
   background: transparent;
-  color: var(--text);
+  color: var(--ds-on-surface-variant);
   display: grid; place-items: center;
   font-size: 14px;
   transition: border-color 0.15s;
 }
-.metronome__cloudBtn:hover { border-color: var(--accent-border); color: var(--accent); }
+.metronome__cloudBtn:hover { border-color: color-mix(in srgb, rgb(var(--ds-primary-rgb)) 42%, transparent); color: rgb(var(--ds-primary-rgb)); }
 
 /* ── Modal ── */
 .metronome__modalBackdrop {
@@ -213,24 +167,30 @@
 }
 .metronome__modal {
   width: min(520px, 100%);
-  border: 0.5px solid var(--border);
-  background: var(--surface);
+  border: 0.5px solid var(--ds-outline-variant);
+  background: var(--ds-surface-container-low);
   padding: 20px;
   display: grid; gap: 14px;
 }
 .metronome__modalTitle {
   font-size: 13px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
-  color: var(--text-h);
+  color: var(--ds-on-surface);
 }
-.metronome__modalBody  { font-size: 12px; color: var(--text); line-height: 1.5; }
+.metronome__modalBody  { font-size: 12px; color: var(--ds-on-surface-variant); line-height: 1.5; }
 .metronome__modalActions { display: grid; gap: 8px; }
 
 /* ── Main panel ── */
 .metronome__panel {
   overflow: hidden;
   position: relative;
-  background: var(--bg);
+  background: transparent;
+}
+
+.metronome__panel--layout-obsidian {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* ── BPM hero area ── */
@@ -244,7 +204,7 @@
   line-height: 1;
   letter-spacing: -6px;
   color: transparent;
-  -webkit-text-stroke: 1px rgba(240, 237, 230, 0.055);
+  -webkit-text-stroke: 1px color-mix(in srgb, var(--ds-on-surface) 6%, transparent);
   position: absolute;
   top: 12px; left: 14px;
   pointer-events: none;
@@ -262,7 +222,7 @@
   font-weight: 700;
   line-height: 1;
   letter-spacing: -5px;
-  color: var(--text-h);
+  color: var(--ds-on-surface);
 }
 .metronome__bpmAside {
   display: flex;
@@ -275,19 +235,19 @@
   font-size: 9px;
   letter-spacing: 4px;
   text-transform: uppercase;
-  color: var(--text);
+  color: var(--ds-on-surface-variant);
 }
 .metronome__tempoName {
   font-size: 10px;
   letter-spacing: 2px;
   text-transform: uppercase;
-  color: var(--accent);
+  color: rgb(var(--ds-primary-rgb));
 }
 
 /* ── Divider ── */
 .metronome__rule {
   height: 1px;
-  background: var(--border);
+  background: var(--ds-outline-variant);
   margin: 16px 20px;
 }
 
@@ -302,8 +262,8 @@
   height: 2px;
   background: linear-gradient(
     to right,
-    var(--accent) var(--pct, 30%),
-    rgba(240, 237, 230, 0.12) var(--pct, 30%)
+    rgb(var(--ds-primary-rgb)) var(--pct, 30%),
+    color-mix(in srgb, var(--ds-on-surface) 12%, transparent) var(--pct, 30%)
   );
   border-radius: 0;
   outline: none;
@@ -314,9 +274,9 @@
   appearance: none;
   width: 14px; height: 14px;
   border-radius: 0;
-  background: var(--accent);
+  background: rgb(var(--ds-primary-rgb));
   cursor: grab;
-  border: 2px solid var(--bg);
+  border: 2px solid var(--ds-background);
   transition: transform 0.1s;
 }
 .metronome__slider:active::-webkit-slider-thumb {
@@ -328,7 +288,7 @@
   justify-content: space-between;
   align-items: center;
   font-size: 9px;
-  color: var(--text);
+  color: var(--ds-on-surface-variant);
   margin-top: 6px;
   letter-spacing: 1px;
 }
@@ -344,7 +304,7 @@
   font: inherit;
   font-size: 9px;
   letter-spacing: 1px;
-  color: var(--text);
+  color: var(--ds-on-surface-variant);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   border-radius: 2px;
@@ -352,12 +312,12 @@
 }
 .metronome__sliderLabelBtn:hover,
 .metronome__sliderLabelBtn:focus-visible {
-  color: var(--text-h);
-  background: rgba(240, 237, 230, 0.06);
+  color: var(--ds-on-surface);
+  background: color-mix(in srgb, var(--ds-on-surface) 6%, transparent);
   outline: none;
 }
 .metronome__sliderLabelBtn:active {
-  color: var(--accent);
+  color: rgb(var(--ds-primary-rgb));
 }
 
 /* ── Rotary dial (kept for stage mode / settings) ── */
@@ -370,25 +330,31 @@
   width: clamp(140px, 26vh, 190px);
   height: clamp(140px, 26vh, 190px);
   border-radius: 999px;
-  border: 0.5px solid var(--border);
-  background: var(--bg);
-  box-shadow: var(--shadow);
+  border: 0.5px solid var(--ds-outline-variant);
+  background: var(--ds-background);
+  box-shadow: var(--ds-shadow);
   position: relative;
   touch-action: none;
   user-select: none;
 }
 .dial__knob--disabled { opacity: 0.6; cursor: not-allowed; }
 .dial__svg  { width: 100%; height: 100%; display: block; }
-.dial__track { fill: none; stroke: rgba(240,237,230,0.08); stroke-width: 10; }
+.dial__track { fill: none; stroke: color-mix(in srgb, var(--ds-on-surface) 8%, transparent); stroke-width: 10; }
 .dial__progress {
   fill: none;
-  stroke: var(--accent);
+  stroke: rgb(var(--ds-primary-rgb));
   stroke-width: 10;
   stroke-linecap: square;
   transform: rotate(-90deg);
   transform-origin: 75px 75px;
 }
-.dial__pointer { fill: var(--text-h); opacity: 0.6; }
+.dial__pointer { fill: var(--ds-on-surface); opacity: 0.6; }
+.dial__ball {
+  fill: rgb(var(--ds-primary-rgb));
+  stroke: color-mix(in srgb, rgb(var(--ds-primary-rgb)) 35%, black);
+  stroke-width: 1.5;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, rgb(var(--ds-primary-rgb)) 55%, transparent));
+}
 .dial__readout {
   position: absolute; inset: 0;
   display: grid; place-content: center;
@@ -401,15 +367,15 @@
   background: transparent;
   pointer-events: auto; cursor: pointer;
 }
-.dial__tapArea:active { background: rgba(200,68,10,0.06); }
+.dial__tapArea:active { background: color-mix(in srgb, rgb(var(--ds-chrome-rgb)) 8%, transparent); }
 .dial__ripple {
   position: absolute;
   width: 14px; height: 14px;
   border-radius: 999px;
   transform: translate(-50%, -50%);
   pointer-events: none;
-  background: rgba(200, 68, 10, 0.3);
-  border: 1px solid rgba(200, 68, 10, 0.4);
+  background: color-mix(in srgb, rgb(var(--ds-chrome-rgb)) 28%, transparent);
+  border: 1px solid color-mix(in srgb, rgb(var(--ds-chrome-rgb)) 45%, transparent);
   animation: dialRipple 520ms ease-out forwards;
 }
 @keyframes dialRipple {
@@ -417,10 +383,10 @@
   100% { opacity: 0;   transform: translate(-50%, -50%) scale(7); }
 }
 .dial__value {
-  font-family: var(--mono);
+  font-family: var(--ds-font-sans);
   font-size: 40px;
   letter-spacing: -2px;
-  color: var(--text-h);
+  color: var(--ds-on-surface);
   line-height: 1;
 }
 .dial__valueInput {
@@ -433,17 +399,40 @@
   padding: 4px 8px;
   outline: none;
   position: relative; z-index: 1;
-  font-family: var(--mono);
-  color: var(--text-h);
+  font-family: var(--ds-font-sans);
+  color: var(--ds-on-surface);
 }
 .dial__valueInput:focus {
-  border-color: var(--border);
-  background: color-mix(in srgb, var(--bg) 85%, transparent);
-  box-shadow: 0 0 0 3px var(--accent-bg);
+  border-color: var(--ds-outline-variant);
+  background: color-mix(in srgb, var(--ds-background) 85%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, rgb(var(--ds-primary-rgb)) 14%, transparent);
 }
 .dial__valueInput:disabled { cursor: not-allowed; }
-.dial__unit  { font-size: 11px; color: var(--text); margin-top: 4px; letter-spacing: 3px; }
-.dial__hint  { font-size: 10px; color: var(--text); letter-spacing: 1px; }
+.dial__unit  { font-size: 11px; color: var(--ds-on-surface-variant); margin-top: 4px; letter-spacing: 3px; }
+.dial__hint  { font-size: 10px; color: var(--ds-on-surface-variant); letter-spacing: 1px; }
+
+/* Obsidian Stitch wheel — full-area transparent dial; LCD readout is overlaid in JSX */
+.metronome-obsidian-wheel__dialHost .dial {
+  gap: 0;
+}
+.metronome-obsidian-wheel__dialHost .dial__hint {
+  display: none;
+}
+.metronome-obsidian-wheel__dialHost .dial__knob {
+  width: 288px;
+  height: 288px;
+  max-width: 288px;
+  max-height: 288px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+.metronome-obsidian-wheel__dialHost .dial__svg {
+  opacity: 0;
+}
+.metronome-obsidian-wheel__dialHost .dial__readout {
+  visibility: hidden;
+}
 
 /* ── Beat accents — stacked block columns ── */
 .metronome__accentWrap {
@@ -453,7 +442,7 @@
   font-size: 8px;
   letter-spacing: 4px;
   text-transform: uppercase;
-  color: var(--text);
+  color: var(--ds-on-surface-variant);
   margin-bottom: 12px;
 }
 .metronome__accents {
@@ -484,11 +473,11 @@
   height: 96px;
 }
 .metronome__beat:focus-visible {
-  outline: 2px solid var(--accent-border);
+  outline: 2px solid color-mix(in srgb, rgb(var(--ds-primary-rgb)) 42%, transparent);
   outline-offset: 2px;
 }
-.metronome__beat:hover  { background: rgba(240, 237, 230, 0.03); }
-.metronome__beat:active { background: rgba(240, 237, 230, 0.07); }
+.metronome__beat:hover  { background: color-mix(in srgb, var(--ds-on-surface) 3%, transparent); }
+.metronome__beat:active { background: color-mix(in srgb, var(--ds-on-surface) 7%, transparent); }
 .metronome__beat--mute  { opacity: 0.2; }
 
 /* The three equal-height sub-blocks */
@@ -498,25 +487,25 @@
   transition: background 0.1s, box-shadow 0.1s;
 }
 /* Empty (unfilled) */
-.beat__block--empty { background: rgba(240, 237, 230, 0.07); }
+.beat__block--empty { background: color-mix(in srgb, var(--ds-on-surface) 7%, transparent); }
 
-/* Filled colors by tier */
-.beat__block--b0.beat__block--filled { background: rgba(240, 237, 230, 0.32); }   /* soft white   */
-.beat__block--b1.beat__block--filled { background: rgba(210, 110, 10, 0.85); }    /* mid amber    */
-.beat__block--b2.beat__block--filled { background: #c8440a; }                      /* full red     */
+/* Filled colors by tier — driven by DS primary / chrome */
+.beat__block--b0.beat__block--filled { background: color-mix(in srgb, var(--ds-on-surface) 32%, transparent); }
+.beat__block--b1.beat__block--filled { background: color-mix(in srgb, rgb(var(--ds-chrome-rgb)) 72%, transparent); }
+.beat__block--b2.beat__block--filled { background: rgb(var(--ds-primary-rgb)); }
 
 /* Active beat flash */
 .metronome__beat.is-beat-active .beat__block--b0.beat__block--filled {
-  background: rgba(240, 237, 230, 0.7);
-  box-shadow: 0 0 8px rgba(240, 237, 230, 0.3);
+  background: color-mix(in srgb, var(--ds-on-surface) 72%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--ds-on-surface) 28%, transparent);
 }
 .metronome__beat.is-beat-active .beat__block--b1.beat__block--filled {
-  background: rgba(230, 130, 20, 1);
-  box-shadow: 0 0 12px rgba(210, 110, 10, 0.5);
+  background: color-mix(in srgb, var(--ds-primary-fixed-dim) 95%, transparent);
+  box-shadow: 0 0 12px rgb(var(--ds-chrome-rgb) / 0.5);
 }
 .metronome__beat.is-beat-active .beat__block--b2.beat__block--filled {
-  background: #ff5010;
-  box-shadow: 0 0 20px rgba(200, 68, 10, 0.7);
+  background: var(--ds-primary-fixed-dim);
+  box-shadow: 0 0 20px rgb(var(--ds-chrome-rgb) / 0.62);
 }
 
 /* Level label */
@@ -524,15 +513,15 @@
   text-align: center;
   font-size: 8px;
   letter-spacing: 1px;
-  color: var(--text);
+  color: var(--ds-on-surface-variant);
   margin-top: 4px;
-  font-family: var(--mono);
+  font-family: var(--ds-font-sans);
 }
-.metronome__beat--accent3 .beat__label { color: var(--accent); }
-.metronome__beat--accent2 .beat__label { color: rgba(210, 110, 10, 0.9); }
-.metronome__beat--accent1 .beat__label { color: rgba(240, 237, 230, 0.4); }
-.metronome__beat--mute    .beat__label { color: rgba(240, 237, 230, 0.15); }
-.metronome__beat--normal  .beat__label { color: rgba(210, 110, 10, 0.9); }
+.metronome__beat--accent3 .beat__label { color: rgb(var(--ds-primary-rgb)); }
+.metronome__beat--accent2 .beat__label { color: rgb(var(--ds-chrome-rgb) / 0.92); }
+.metronome__beat--accent1 .beat__label { color: color-mix(in srgb, var(--ds-on-surface) 42%, transparent); }
+.metronome__beat--mute    .beat__label { color: color-mix(in srgb, var(--ds-on-surface) 18%, transparent); }
+.metronome__beat--normal  .beat__label { color: rgb(var(--ds-chrome-rgb) / 0.88); }
 
 @keyframes beatPop {
   0%   { transform: scaleY(1.25); }
@@ -557,28 +546,39 @@
 .metronome__label {
   display: grid;
   gap: 5px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   font-size: 8px;
   letter-spacing: 2px;
   text-transform: uppercase;
-  color: var(--text);
-  background: rgba(240, 237, 230, 0.04);
-  border: 0.5px solid var(--border);
+  color: var(--ds-on-surface-variant);
+  background: color-mix(in srgb, var(--ds-on-surface) 4%, transparent);
+  border: 0.5px solid var(--ds-outline-variant);
   padding: 10px 12px;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
-.metronome__label:hover { background: rgba(240, 237, 230, 0.07); border-color: rgba(240, 237, 230, 0.18); }
+.metronome__label:hover {
+  background: color-mix(in srgb, var(--ds-on-surface) 7%, transparent);
+  border-color: color-mix(in srgb, var(--ds-on-surface) 18%, transparent);
+}
 .metronome__label--mini {
   font-size: 8px;
   letter-spacing: 2px;
 }
 .metronome__select {
   height: 36px;
-  border: 0.5px solid var(--border);
-  background: var(--bg);
-  color: var(--text-h);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  border: 0.5px solid var(--ds-outline-variant);
+  background: var(--ds-background);
+  color: var(--ds-on-surface);
   padding: 0 8px;
-  font-family: var(--mono);
+  font-family: var(--ds-font-sans);
   font-size: 12px;
   font-weight: 700;
 }
@@ -607,13 +607,13 @@
 }
 .beatBlocks__block {
   height: 36px;
-  border: 1px solid rgba(240, 237, 230, 0.1);
-  background: rgba(240, 237, 230, 0.06);
+  border: 1px solid color-mix(in srgb, var(--ds-on-surface) 10%, transparent);
+  background: color-mix(in srgb, var(--ds-on-surface) 6%, transparent);
   transform-origin: center;
   will-change: transform, filter;
 }
-.beatBlocks__block.is-normal  { background: var(--accent-bg); border-color: var(--accent-border); }
-.beatBlocks__block.is-downbeat { background: var(--danger-bg); border-color: var(--danger-border); }
+.beatBlocks__block.is-normal  { background: color-mix(in srgb, rgb(var(--ds-primary-rgb)) 14%, transparent); border-color: color-mix(in srgb, rgb(var(--ds-primary-rgb)) 42%, transparent); }
+.beatBlocks__block.is-downbeat { background: color-mix(in srgb, var(--ds-error) 14%, transparent); border-color: color-mix(in srgb, var(--ds-error) 48%, transparent); }
 
 /* ── Controls section ── */
 .metronome__controls {
@@ -626,17 +626,17 @@
 /* ── Gear button ── */
 .metronome__gearBtn {
   height: 36px;
-  border: 0.5px solid var(--border);
+  border: 0.5px solid var(--ds-outline-variant);
   background: transparent;
-  color: var(--text);
-  font-family: var(--mono);
+  color: var(--ds-on-surface-variant);
+  font-family: var(--ds-font-sans);
   font-size: 10px;
   letter-spacing: 2px;
   text-transform: uppercase;
   padding: 0 14px;
   transition: border-color 0.15s, color 0.15s;
 }
-.metronome__gearBtn:hover  { border-color: var(--accent-border); color: var(--accent); }
+.metronome__gearBtn:hover  { border-color: color-mix(in srgb, rgb(var(--ds-primary-rgb)) 42%, transparent); color: rgb(var(--ds-primary-rgb)); }
 .metronome__gearBtn--under { justify-self: center; }
 
 /* ── Sticky play bar ── */
@@ -651,8 +651,8 @@
   align-items: center;
   gap: 8px;
   padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
-  border-top: 1px solid rgba(240, 237, 230, 0.06);
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--ds-on-surface) 6%, transparent);
+  background: color-mix(in srgb, var(--ds-background) 88%, transparent);
   backdrop-filter: blur(14px);
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
@@ -663,25 +663,28 @@
   flex: 1;
   height: 54px;
   background: transparent;
-  border: 0.5px solid var(--border);
-  color: var(--text);
-  font-family: var(--mono);
+  border: 0.5px solid var(--ds-outline-variant);
+  color: var(--ds-on-surface-variant);
+  font-family: var(--ds-font-sans);
   font-size: 10px;
   letter-spacing: 3px;
   text-transform: uppercase;
   cursor: pointer;
   transition: background 0.1s, transform 0.06s;
 }
-.metronome__tapBtn:active { background: rgba(240, 237, 230, 0.06); transform: scale(0.98); }
+.metronome__tapBtn:active {
+  background: color-mix(in srgb, var(--ds-on-surface) 6%, transparent);
+  transform: scale(0.98);
+}
 
 /* FAB play/pause */
 .metronome__fab {
   width: 88px;
   height: 54px;
   border: none;
-  background: var(--accent);
-  color: var(--bg);
-  font-family: var(--mono);
+  background: rgb(var(--ds-primary-rgb));
+  color: var(--ds-on-primary);
+  font-family: var(--ds-font-sans);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 2px;
@@ -696,13 +699,13 @@
 .metronome__fab:active { transform: scale(0.96); }
 .metronome__fab.is-active {
   background: transparent;
-  border: 0.5px solid var(--accent);
-  color: var(--accent);
+  border: 0.5px solid rgb(var(--ds-primary-rgb));
+  color: rgb(var(--ds-primary-rgb));
   animation: fabPulse 1.4s ease-in-out infinite;
 }
 @keyframes fabPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(200, 68, 10, 0); }
-  50%       { box-shadow: 0 0 0 6px rgba(200, 68, 10, 0.18); }
+  0%, 100% { box-shadow: 0 0 0 0 rgb(var(--ds-chrome-rgb) / 0); }
+  50%       { box-shadow: 0 0 0 6px rgb(var(--ds-chrome-rgb) / 0.22); }
 }
 
 /* Settings gear icon button */
@@ -710,15 +713,18 @@
   width: 54px;
   height: 54px;
   background: transparent;
-  border: 0.5px solid var(--border);
-  color: var(--text);
+  border: 0.5px solid var(--ds-outline-variant);
+  color: var(--ds-on-surface-variant);
   font-size: 16px;
   display: grid; place-items: center;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
   flex-shrink: 0;
 }
-.metronome__settingsBtn:hover { background: rgba(240, 237, 230, 0.05); border-color: rgba(240, 237, 230, 0.2); }
+.metronome__settingsBtn:hover {
+  background: color-mix(in srgb, var(--ds-on-surface) 5%, transparent);
+  border-color: color-mix(in srgb, var(--ds-on-surface) 20%, transparent);
+}
 
 /* ── Row helpers ── */
 .metronome__row {
@@ -730,7 +736,7 @@
 .metronome__row--presets { grid-template-columns: 1fr; align-items: start; }
 .metronome__hint {
   font-size: 10px;
-  color: var(--text);
+  color: var(--ds-on-surface-variant);
   letter-spacing: 1px;
   text-align: right;
 }
@@ -781,7 +787,7 @@
   max-height: 100%;
   box-sizing: border-box;
   border: none;
-  background: var(--surface);
+  background: var(--ds-surface-container-low);
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-top: max(8px, env(safe-area-inset-top, 0px));
@@ -863,11 +869,11 @@
   min-width: 0;
   overflow-wrap: anywhere;
   word-break: break-word;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 3px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-h);
+  color: var(--ds-on-surface);
 }
 .metronome__drawerBody {
   flex: 1 1 0;
@@ -882,56 +888,63 @@
 }
 .metronome__drawerSection {
   padding: 14px;
-  border: 0.5px solid var(--border);
-  background: rgba(240, 237, 230, 0.02);
+  border: 0.5px solid var(--ds-outline-variant);
+  background: color-mix(in srgb, var(--ds-surface-container-high) 88%, transparent);
   display: grid;
   gap: 12px;
 }
 .metronome__drawerSectionTitle {
-  font-size: 9px;
+  font-size: 10px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 2px;
-  color: var(--text);
+  letter-spacing: 0.06em;
+  color: var(--ds-on-surface-variant);
 }
 
 /* ── Buttons ── */
 .metronome__btn {
-  font-family: var(--mono);
+  font-family: var(--ds-font-sans);
   padding: 8px 14px;
-  border: 0.5px solid var(--border);
+  border: 0.5px solid var(--ds-outline-variant);
   background: transparent;
-  color: var(--text-h);
+  color: var(--ds-on-surface);
   font-size: 10px;
   letter-spacing: 1px;
   cursor: pointer;
   transition: border-color 0.15s;
 }
-.metronome__btn:hover    { border-color: var(--accent-border); }
+.metronome__btn:hover    { border-color: color-mix(in srgb, rgb(var(--ds-primary-rgb)) 42%, transparent); }
 .metronome__btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.metronome__btn--primary { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+.metronome__btn--primary { background: color-mix(in srgb, rgb(var(--ds-primary-rgb)) 14%, transparent); border-color: color-mix(in srgb, rgb(var(--ds-primary-rgb)) 42%, transparent); color: rgb(var(--ds-primary-rgb)); }
 
 /* ── Misc inputs ── */
 .metronome__input {
   height: 38px;
-  border: 0.5px solid var(--border);
-  background: var(--bg);
-  color: var(--text-h);
+  border: 0.5px solid var(--ds-outline-variant);
+  background: var(--ds-background);
+  color: var(--ds-on-surface);
   padding: 0 10px;
-  font-family: var(--mono);
+  font-family: var(--ds-font-sans);
   font-size: 12px;
 }
-.metronome__range       { width: 100%; height: 32px; accent-color: var(--accent); }
-.metronome__rangeValue  { font-size: 10px; color: var(--text-h); text-align: right; letter-spacing: 1px; }
+.metronome__range       { width: 100%; height: 32px; accent-color: rgb(var(--ds-primary-rgb)); }
+.metronome__rangeValue  { font-size: 10px; color: var(--ds-on-surface); text-align: right; letter-spacing: 1px; }
 .metronome__gapGrid     { margin-top: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.metronome__progress    { margin-top: 8px; height: 3px; border: 0.5px solid var(--border); overflow: hidden; background: rgba(240,237,230,0.05); }
-.metronome__progressBar { height: 100%; width: 0%; background: var(--accent); transition: width 120ms linear; }
-.metronome__progressLabel { margin-top: 4px; font-size: 10px; color: var(--text); text-align: right; letter-spacing: 1px; }
+.metronome__progress {
+  margin-top: 8px;
+  height: 3px;
+  border: 0.5px solid var(--ds-outline-variant);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--ds-on-surface) 6%, transparent);
+}
+.metronome__progressBar { height: 100%; width: 0%; background: rgb(var(--ds-primary-rgb)); transition: width 120ms linear; }
+.metronome__progressLabel { margin-top: 4px; font-size: 10px; color: var(--ds-on-surface-variant); text-align: right; letter-spacing: 1px; }
 
 /* ── Guest / link buttons ── */
 .metronome__guestPrompt {
-  border: 0.5px solid var(--accent-border);
-  background: var(--accent-bg);
-  color: var(--text-h);
+  border: 0.5px solid color-mix(in srgb, rgb(var(--ds-primary-rgb)) 42%, transparent);
+  background: color-mix(in srgb, rgb(var(--ds-primary-rgb)) 14%, transparent);
+  color: var(--ds-on-surface);
   padding: 10px 14px;
   font-size: 12px;
   display: flex; align-items: center;
@@ -940,20 +953,20 @@
 }
 .metronome__linkBtn {
   border: none; background: transparent;
-  color: var(--accent);
-  font-family: var(--mono);
+  color: rgb(var(--ds-primary-rgb));
+  font-family: var(--ds-font-sans);
   padding: 4px 8px;
   font-size: 10px;
   letter-spacing: 1px;
 }
-.metronome__linkBtn:hover { background: var(--accent-bg); }
+.metronome__linkBtn:hover { background: color-mix(in srgb, rgb(var(--ds-primary-rgb)) 14%, transparent); }
 
 /* ── Performance (Stage) mode ── */
 .metronome__performance {
   position: fixed; inset: 0;
   /* Above .bottomNav (60) — full-screen stage mode */
   z-index: 100;
-  background: var(--bg);
+  background: var(--ds-background);
   display: grid;
   grid-template-rows: auto 1fr 28vh;
 }
@@ -968,19 +981,19 @@
   display: grid; align-content: center;
   justify-items: center; text-align: center; gap: 10px;
 }
-.metronome__performanceLabel { font-size: 10px; letter-spacing: 2px; color: var(--text); }
+.metronome__performanceLabel { font-size: 10px; letter-spacing: 2px; color: var(--ds-on-surface-variant); }
 .metronome__performanceSong  {
   font-size: clamp(60px, 6.5vw, 88px);
   line-height: 1.02; letter-spacing: -2px;
-  font-weight: 700; color: var(--text-h); padding: 0 10px;
+  font-weight: 700; color: var(--ds-on-surface); padding: 0 10px;
 }
-.metronome__performanceMeta  { font-size: 10px; color: var(--text); letter-spacing: 2px; }
+.metronome__performanceMeta  { font-size: 10px; color: var(--ds-on-surface-variant); letter-spacing: 2px; }
 .metronome__nextSongZone {
   width: 100%; height: 100%;
-  border: none; border-top: 1px solid var(--border);
-  background: var(--accent-bg);
-  color: var(--accent);
-  font-family: var(--mono);
+  border: none; border-top: 1px solid var(--ds-outline-variant);
+  background: color-mix(in srgb, rgb(var(--ds-primary-rgb)) 14%, transparent);
+  color: rgb(var(--ds-primary-rgb));
+  font-family: var(--ds-font-sans);
   font-size: clamp(18px, 3vw, 28px);
   font-weight: 700; letter-spacing: 3px;
   text-transform: uppercase;
@@ -994,8 +1007,8 @@
   gap: 10px; align-items: center;
 }
 .metronome__bpm {
-  font-family: var(--mono);
-  font-size: 18px; color: var(--text-h);
+  font-family: var(--ds-font-sans);
+  font-size: 18px; color: var(--ds-on-surface);
   min-width: 58px; text-align: right;
 }
 

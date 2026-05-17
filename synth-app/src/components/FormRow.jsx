@@ -1,9 +1,11 @@
-export function Row({ label, value, onChange, min, max, step, fmt }) {
+export function Row({ label, value, onChange, min, max, step, fmt, obsidianChrome = false }) {
   return (
     <div className="space-y-1">
-      <div className="flex justify-between text-xs text-zinc-400">
+      <div
+        className={`flex justify-between text-xs ${obsidianChrome ? 'text-on-surface-variant' : 'text-zinc-400'}`}
+      >
         <span>{label}</span>
-        <span className="tabular-nums text-zinc-200">{fmt(value)}</span>
+        <span className={`tabular-nums ${obsidianChrome ? 'text-chrome' : 'text-zinc-200'}`}>{fmt(value)}</span>
       </div>
       <input
         type="range"
@@ -12,7 +14,11 @@ export function Row({ label, value, onChange, min, max, step, fmt }) {
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-zinc-800 accent-[#39ff14] [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#39ff14]"
+        className={
+          obsidianChrome
+            ? 'h-2 w-full cursor-pointer appearance-none rounded-full bg-hairline accent-chrome [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-chrome'
+            : 'h-2 w-full cursor-pointer appearance-none rounded-full bg-zinc-800 accent-[#39ff14] [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#39ff14]'
+        }
       />
     </div>
   )

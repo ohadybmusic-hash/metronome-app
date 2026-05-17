@@ -83,23 +83,30 @@ export function startMetronomeFromUserGesture({
       const startAt = ctx.currentTime + 0.05
       const woodFreq = 2600
 
-      for (let i = 0; i < totalBeats; i += 1) {
-        const when = startAt + i * secondsPerBeat
-        createWoodblockAt(ctx, when, output, { frequency: woodFreq, volume: 0.7 })
-        const id = window.setTimeout(() => {
-          setCountInBeatsRemaining((prev) => Math.max(0, prev - 1))
-        }, Math.max(0, (when - ctx.currentTime) * 1000))
-        countInRef.current.timeouts.add(id)
-      }
+      try {
+        for (let i = 0; i < totalBeats; i += 1) {
+          const when = startAt + i * secondsPerBeat
+          createWoodblockAt(ctx, when, output, { frequency: woodFreq, volume: 0.7 })
+          const id = window.setTimeout(() => {
+            setCountInBeatsRemaining((prev) => Math.max(0, prev - 1))
+          }, Math.max(0, (when - ctx.currentTime) * 1000))
+          countInRef.current.timeouts.add(id)
+        }
 
-      const endId = window.setTimeout(() => {
-        countInRef.current.active = false
+        const endId = window.setTimeout(() => {
+          countInRef.current.active = false
+          clearCountInTimeoutsOnly(countInRef)
+          setCountInActive(false)
+          setCountInBeatsRemaining(0)
+          startMain(startAt + totalBeats * secondsPerBeat)
+        }, Math.max(0, (startAt + totalBeats * secondsPerBeat - ctx.currentTime) * 1000))
+        countInRef.current.timeouts.add(endId)
+      } catch {
         clearCountInTimeoutsOnly(countInRef)
+        countInRef.current.active = false
         setCountInActive(false)
         setCountInBeatsRemaining(0)
-        startMain(startAt + totalBeats * secondsPerBeat)
-      }, Math.max(0, (startAt + totalBeats * secondsPerBeat - ctx.currentTime) * 1000))
-      countInRef.current.timeouts.add(endId)
+      }
       return
     }
 
@@ -141,7 +148,7 @@ export function startMetronomeFromUserGesture({
     isPlayingRef.current = true
     setIsPlaying(true)
 
-    if (soundRef.current === 'voiceNumbers' || soundRef.current === 'voiceCount') {
+  if (soundRef.current === 'voiceNumbers' || soundRef.current === 'voiceCount') {
       void (async () => {
         if (soundRef.current === 'voiceNumbers') {
           await loadVoiceSamples()

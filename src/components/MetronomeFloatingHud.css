@@ -7,11 +7,11 @@
   gap: 0;
   max-width: min(100vw - 16px, 17.5rem);
   border-radius: 12px;
-  border: 1px solid rgba(240, 237, 230, 0.12);
-  background: color-mix(in srgb, var(--bg, #0c0c0d) 92%, transparent);
+  border: 1px solid var(--ds-outline-variant);
+  background: color-mix(in srgb, var(--ds-surface-container-low) 94%, transparent);
   backdrop-filter: blur(12px);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
-  font-family: var(--mono, ui-monospace, monospace);
+  box-shadow: var(--ds-shadow);
+  font-family: var(--ds-font-sans);
   touch-action: auto;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
@@ -45,12 +45,12 @@
   padding: 0;
   margin: 0;
   border: none;
-  border-right: 1px solid rgba(240, 237, 230, 0.08);
-  background: rgba(240, 237, 230, 0.04);
+  border-right: 1px solid var(--ds-outline-variant);
+  background: color-mix(in srgb, var(--ds-surface-container-high) 60%, transparent);
   cursor: grab;
   display: grid;
   place-items: center;
-  color: var(--text, #c9c5bd);
+  color: var(--ds-on-surface-variant);
   touch-action: none;
   align-self: stretch;
 }
@@ -79,7 +79,7 @@
   margin: 0;
   border: none;
   background: transparent;
-  color: var(--accent, #c8440a);
+  color: rgb(var(--ds-primary-rgb));
   font-size: 1.25rem;
   font-weight: 600;
   line-height: 1;
@@ -89,11 +89,11 @@
 }
 
 .metronomeFloatHud__step:hover {
-  background: rgba(200, 68, 10, 0.12);
+  background: color-mix(in srgb, rgb(var(--ds-primary-rgb)) 14%, transparent);
 }
 
 .metronomeFloatHud__step:active {
-  background: rgba(200, 68, 10, 0.2);
+  background: color-mix(in srgb, rgb(var(--ds-primary-rgb)) 24%, transparent);
 }
 
 .metronomeFloatHud__center {
@@ -104,8 +104,8 @@
   padding: 6px 10px 7px;
   min-width: 4.75rem;
   flex: 1 1 auto;
-  border-left: 1px solid rgba(240, 237, 230, 0.06);
-  border-right: 1px solid rgba(240, 237, 230, 0.06);
+  border-left: 1px solid var(--ds-outline-variant);
+  border-right: 1px solid var(--ds-outline-variant);
 }
 
 .metronomeFloatHud__bpm {
@@ -118,7 +118,7 @@
 .metronomeFloatHud__bpmVal {
   font-size: 1.125rem;
   font-weight: 700;
-  color: var(--text-h, #f0ede6);
+  color: var(--ds-on-surface);
   letter-spacing: -0.02em;
 }
 
@@ -127,7 +127,7 @@
   font-weight: 650;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text, #9c9890);
+  color: var(--ds-on-surface-variant);
 }
 
 .metronomeFloatHud__cycle {
@@ -135,12 +135,12 @@
   font-size: 0.5625rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--text, #9c9890);
+  color: var(--ds-on-surface-variant);
 }
 
 .metronomeFloatHud__cycleNums {
   font-weight: 700;
-  color: var(--text-h, #f0ede6);
+  color: var(--ds-on-surface);
   letter-spacing: 0.04em;
 }
 
@@ -150,9 +150,9 @@
   padding: 0 10px;
   margin: 0;
   border: none;
-  border-left: 1px solid rgba(240, 237, 230, 0.08);
-  background: var(--accent, #c8440a);
-  color: var(--bg, #0c0c0d);
+  border-left: 1px solid var(--ds-outline-variant);
+  background: rgb(var(--ds-primary-rgb));
+  color: var(--ds-on-primary);
   font-family: inherit;
   font-size: 0.5625rem;
   font-weight: 700;
@@ -173,15 +173,15 @@
 
 .metronomeFloatHud__play--on {
   background: transparent;
-  color: var(--accent, #c8440a);
-  border-left: 1px solid rgba(200, 68, 10, 0.35);
-  box-shadow: inset 0 0 0 1px rgba(200, 68, 10, 0.45);
+  color: rgb(var(--ds-primary-rgb));
+  border-left: 1px solid color-mix(in srgb, rgb(var(--ds-primary-rgb)) 42%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, rgb(var(--ds-primary-rgb)) 42%, transparent);
 }
 
 .metronomeFloatHud__footer {
-  border-top: 1px solid rgba(240, 237, 230, 0.08);
+  border-top: 1px solid var(--ds-outline-variant);
   padding: 8px 10px 10px;
-  background: rgba(0, 0, 0, 0.12);
+  background: color-mix(in srgb, var(--ds-background) 65%, black);
   user-select: text;
 }
 
@@ -199,14 +199,14 @@
   text-transform: uppercase;
   padding: 3px 7px;
   border-radius: 6px;
-  border: 1px solid rgba(240, 237, 230, 0.12);
-  color: var(--text, #9c9890);
+  border: 1px solid var(--ds-outline-variant);
+  color: var(--ds-on-surface-variant);
 }
 
 .metronomeFloatHud__flag--on {
-  border-color: rgba(200, 68, 10, 0.45);
-  color: var(--accent, #c8440a);
-  background: rgba(200, 68, 10, 0.1);
+  border-color: color-mix(in srgb, rgb(var(--ds-primary-rgb)) 42%, transparent);
+  color: rgb(var(--ds-primary-rgb));
+  background: color-mix(in srgb, rgb(var(--ds-primary-rgb)) 14%, transparent);
 }
 
 .metronomeFloatHud__flag--off {
@@ -215,7 +215,7 @@
 
 .metronomeFloatHud__details {
   font-size: 0.6875rem;
-  color: var(--text-h, #f0ede6);
+  color: var(--ds-on-surface);
 }
 
 .metronomeFloatHud__details summary {
@@ -224,7 +224,7 @@
   font-weight: 650;
   letter-spacing: 0.04em;
   padding: 4px 0;
-  color: var(--text-h, #f0ede6);
+  color: var(--ds-on-surface);
 }
 
 .metronomeFloatHud__details summary::-webkit-details-marker {
@@ -254,12 +254,12 @@
   align-items: center;
   gap: 8px;
   font-size: 0.6875rem;
-  color: var(--text-h, #f0ede6);
+  color: var(--ds-on-surface);
   cursor: pointer;
 }
 
 .metronomeFloatHud__toggle input {
-  accent-color: var(--accent, #c8440a);
+  accent-color: rgb(var(--ds-primary-rgb));
 }
 
 .metronomeFloatHud__field {
@@ -273,15 +273,15 @@
   font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text, #9c9890);
+  color: var(--ds-on-surface-variant);
 }
 
 .metronomeFloatHud__select {
   height: 36px;
   border-radius: 8px;
-  border: 1px solid rgba(240, 237, 230, 0.14);
-  background: var(--surface, #141416);
-  color: var(--text-h, #f0ede6);
+  border: 1px solid var(--ds-outline-variant);
+  background: var(--ds-surface-container-lowest);
+  color: var(--ds-on-surface);
   font-family: inherit;
   font-size: 0.75rem;
   padding: 0 10px;

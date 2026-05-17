@@ -14,6 +14,8 @@ export function useMetronomeRefSync({
   subdivisionRef,
   sound,
   soundRef,
+  clickVolume,
+  clickVolumeRef,
   beatAccents,
   beatAccentsRef,
   hapticsEnabled,
@@ -43,6 +45,7 @@ export function useMetronomeRefSync({
     meterRef.current = getMeter(timeSignature)
     subdivisionRef.current = subdivision
     soundRef.current = sound
+    clickVolumeRef.current = Math.max(0, Math.min(1, Number(clickVolume) || 0))
     beatAccentsRef.current = beatAccents
     hapticsEnabledRef.current = hapticsEnabled
 
@@ -69,6 +72,7 @@ export function useMetronomeRefSync({
     timeSignature,
     subdivision,
     sound,
+    clickVolume,
     beatAccents,
     hapticsEnabled,
     internalClockEnabled,

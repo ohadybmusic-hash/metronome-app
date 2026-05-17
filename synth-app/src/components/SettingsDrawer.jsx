@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { DEFAULT_FX_DRUM, DEFAULT_FX_SYNTH } from '../hooks/useSynth.js'
+import { synthChromeUi } from '../lib/synthChromeUi.js'
 import { DrumEngineBlock } from './DrumEngineBlock.jsx'
 import { EffectsBlock } from './EffectsBlock.jsx'
 import { PianoSynthesisForm } from './PianoSynthesisForm.jsx'
@@ -16,6 +17,9 @@ export function SettingsDrawer({
   maximized = false,
   playLayout: playLayoutProp,
   drumMode,
+  initialDuoTab,
+  obsidianChrome = false,
+  synthwaveChrome = false,
   fx,
   setFx,
   partCount,
@@ -45,10 +49,20 @@ export function SettingsDrawer({
 }) {
   const playLayout =
     playLayoutProp ?? (drumMode ? 'drum' : 'piano')
+  const u = synthChromeUi(obsidianChrome ? 'obsidian' : synthwaveChrome ? 'synthwave' : 'legacy')
   const [duoTab, setDuoTab] = useState(/** @type {'synth' | 'drums'} */ ('synth'))
   useEffect(() => {
-    if (!open) setDuoTab('synth')
-  }, [open])
+    if (!open) {
+      setDuoTab('synth')
+      return
+    }
+    if (playLayout !== 'both') return
+    if (initialDuoTab === 'drums' || initialDuoTab === 'synth') {
+      setDuoTab(initialDuoTab)
+    } else {
+      setDuoTab('synth')
+    }
+  }, [open, initialDuoTab, playLayout])
   useEffect(() => {
     if (!open) return
     const o = (e) => {
@@ -69,10 +83,8 @@ export function SettingsDrawer({
         onClick={onClose}
       />
       <div
-        className={`fixed inset-x-0 bottom-0 z-50 overflow-y-auto rounded-t-2xl border border-t border-zinc-800 bg-[#0c0c10] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-8px_40px_rgba(0,0,0,0.5)] ${
-          maximized
-            ? 'h-[100dvh] max-h-[100dvh]'
-            : 'max-h-[78vh]'
+        className={`${u.drawerShell} ${
+          maximized ? 'h-[100dvh] max-h-[100dvh]' : 'max-h-[78vh]'
         }`}
         style={{
           transform: 'translateY(0)',
@@ -82,9 +94,9 @@ export function SettingsDrawer({
         <style>{`
           @keyframes sdrawer { from { transform: translateY(100%); } to { transform: translateY(0); } }
         `}</style>
-        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-zinc-700" />
-        <h2 className="mb-0.5 text-sm font-semibold text-zinc-200">Synthesis</h2>
-        <p className="mb-3 text-xs text-zinc-500">
+        <div className={u.drawerHandle} />
+        <h2 className={u.drawerTitle}>Synthesis</h2>
+        <p className={u.drawerLead}>
           {playLayout === 'both'
             ? 'Duo: drums and keyboard play together. Use the tabs for synth (parts, oscillators, time and space) vs drum kit, samples, and pad routing. A–D opens the synth panel in the center; drum pads live above the keys.'
             : playLayout === 'drum'
@@ -99,6 +111,8 @@ export function SettingsDrawer({
               getPresetSnapshot={getPresetSnapshot}
               applyPresetSnapshot={applyPresetSnapshot}
               onUserGesture={onUserGesture}
+              obsidianChrome={obsidianChrome}
+              synthwaveChrome={synthwaveChrome}
             />
             <DrumEngineBlock
               drumKit={drumKit}
@@ -110,6 +124,7 @@ export function SettingsDrawer({
               setDrumSample={setDrumSample}
               clearDrumSample={clearDrumSample}
               drumSampleBuffers={drumSampleBuffers}
+              obsidianChrome={obsidianChrome}
             />
             <div className="mb-3">
               <EffectsBlock
@@ -119,6 +134,8 @@ export function SettingsDrawer({
                 drumMode
                 drumKit={drumKit}
                 setDrumKit={setDrumKit}
+                obsidianChrome={obsidianChrome}
+                synthwaveChrome={synthwaveChrome}
               />
             </div>
             <button
@@ -128,25 +145,21 @@ export function SettingsDrawer({
                 resetDrumKit()
                 setFx({ ...DEFAULT_FX_DRUM })
               }}
-              className="mt-4 w-full rounded-lg border border-zinc-800 py-2 text-sm text-zinc-400"
+              className={u.outlineBtn}
             >
               Reset drum sounds and effects
             </button>
           </>
         ) : playLayout === 'both' ? (
           <>
-            <div className="mb-3 flex rounded-lg border border-zinc-800 p-0.5">
+            <div className={u.duoTabWrap}>
               <button
                 type="button"
                 onClick={() => {
                   onUserGesture?.()
                   setDuoTab('synth')
                 }}
-                className={`min-h-[2.25rem] flex-1 rounded-md px-2 py-1.5 text-xs font-semibold ${
-                  duoTab === 'synth'
-                    ? 'bg-[#39ff14]/20 text-[#39ff14] ring-1 ring-[#39ff14]/40'
-                    : 'text-zinc-500'
-                }`}
+                className={duoTab === 'synth' ? u.duoTabOn : u.duoTabOff}
               >
                 Synth
               </button>
@@ -156,11 +169,7 @@ export function SettingsDrawer({
                   onUserGesture?.()
                   setDuoTab('drums')
                 }}
-                className={`min-h-[2.25rem] flex-1 rounded-md px-2 py-1.5 text-xs font-semibold ${
-                  duoTab === 'drums'
-                    ? 'bg-[#39ff14]/20 text-[#39ff14] ring-1 ring-[#39ff14]/40'
-                    : 'text-zinc-500'
-                }`}
+                className={duoTab === 'drums' ? u.duoTabOn : u.duoTabOff}
               >
                 Drums
               </button>
@@ -188,6 +197,8 @@ export function SettingsDrawer({
                 osc3={osc3}
                 setOsc3={setOsc3}
                 compactBottom={false}
+                obsidianChrome={obsidianChrome}
+                synthwaveChrome={synthwaveChrome}
               />
             ) : (
               <>
@@ -197,6 +208,8 @@ export function SettingsDrawer({
                   getPresetSnapshot={getPresetSnapshot}
                   applyPresetSnapshot={applyPresetSnapshot}
                   onUserGesture={onUserGesture}
+                  obsidianChrome={obsidianChrome}
+                  synthwaveChrome={synthwaveChrome}
                 />
                 <DrumEngineBlock
                   drumKit={drumKit}
@@ -208,6 +221,7 @@ export function SettingsDrawer({
                   setDrumSample={setDrumSample}
                   clearDrumSample={clearDrumSample}
                   drumSampleBuffers={drumSampleBuffers}
+                  obsidianChrome={obsidianChrome}
                 />
                 <div className="mb-3">
                   <EffectsBlock
@@ -217,6 +231,8 @@ export function SettingsDrawer({
                     drumMode
                     drumKit={drumKit}
                     setDrumKit={setDrumKit}
+                    obsidianChrome={obsidianChrome}
+                    synthwaveChrome={synthwaveChrome}
                   />
                 </div>
                 <button
@@ -225,7 +241,7 @@ export function SettingsDrawer({
                     onUserGesture?.()
                     resetDrumKit()
                   }}
-                  className="mt-2 w-full rounded-lg border border-zinc-800 py-2 text-sm text-zinc-400"
+                  className={u.outlineBtnTight}
                 >
                   Reset drum sounds
                 </button>
@@ -255,6 +271,8 @@ export function SettingsDrawer({
             osc3={osc3}
             setOsc3={setOsc3}
             compactBottom={false}
+            obsidianChrome={obsidianChrome}
+            synthwaveChrome={synthwaveChrome}
           />
         )}
       </div>

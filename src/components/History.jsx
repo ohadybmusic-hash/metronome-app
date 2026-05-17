@@ -52,24 +52,21 @@ export default function History() {
     }
   }, [since, user])
 
-  if (loading) return <div style={{ padding: 24 }}>Loading…</div>
-  if (!user) return <div style={{ padding: 24 }}>Sign in to view history.</div>
+  if (loading) return <div className="p-6 text-on-background">Loading…</div>
+  if (!user) return <div className="p-6 text-on-background">Sign in to view history.</div>
 
   return (
-    <div style={{ padding: 24, textAlign: 'left' }}>
-      <h2 style={{ margin: '0 0 6px' }}>History</h2>
-      <div style={{ fontFamily: 'var(--mono)', color: 'var(--text)' }}>This week (since Monday UTC)</div>
+    <div className="p-6 text-left text-on-background">
+      <h2 className="mb-1.5 mt-0 font-semibold text-on-background">History</h2>
+      <div className="font-mono text-sm text-on-surface-variant">This week (since Monday UTC)</div>
 
       {error ? (
-        <div style={{ marginTop: 12, border: '1px solid var(--accent-border)', background: 'var(--accent-bg)', padding: 10, borderRadius: 12 }}>
+        <div className="mt-3 rounded-xl border border-outline-variant bg-error-container px-2.5 py-2.5 text-sm text-on-error-container">
           {error}
         </div>
       ) : null}
 
-      <div style={{ marginTop: 14, fontSize: 42, letterSpacing: '-1px', color: 'var(--text-h)', fontFamily: 'var(--mono)' }}>
-        {formatHhMm(totalSeconds)}
-      </div>
+      <div className="mt-3.5 font-mono text-[42px] tracking-tight text-primary">{formatHhMm(totalSeconds)}</div>
     </div>
   )
 }
-

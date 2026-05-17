@@ -6,6 +6,7 @@ import {
   writeUserPresets,
 } from '../lib/synthPreset.js'
 import { SYNTH_FACTORY_PRESETS } from '../lib/synthFactoryPresets.js'
+import { synthChromeUi } from '../lib/synthChromeUi.js'
 
 function safeFileName(s) {
   return String(s)
@@ -13,9 +14,6 @@ function safeFileName(s) {
     .trim()
     .slice(0, 48) || 'preset'
 }
-
-/** Same green accent as the “Load” user-preset control and drum selected pads. */
-const STARTER_PRESET_ON = '#39ff14'
 
 export function PresetBlock({
   open,
@@ -25,7 +23,10 @@ export function PresetBlock({
   applyFactorySynthPreset,
   activeFactoryPresetId = null,
   onUserGesture,
+  obsidianChrome = false,
+  synthwaveChrome = false,
 }) {
+  const u = synthChromeUi(obsidianChrome ? 'obsidian' : synthwaveChrome ? 'synthwave' : 'legacy')
   const [presetName, setPresetName] = useState('')
   const [userPresets, setUserPresets] = useState(() => loadUserPresets())
   const importRef = useRef(null)
@@ -116,20 +117,16 @@ export function PresetBlock({
   }
 
   return (
-    <div className="mb-3 rounded-xl border border-zinc-800/80 bg-zinc-900/20 p-3">
-      <p className="mb-1 text-[10px] font-medium uppercase tracking-widest text-zinc-500">
-        Presets
-      </p>
-      <p className="mb-2 text-[11px] text-zinc-500">
+    <div className={`mb-3 ${u.panel}`}>
+      <p className={u.labelCapsTight}>Presets</p>
+      <p className={u.body}>
         Saves all four parts, drum kit, filter, effects, and part selection.
         Stored in this browser; export a file to back up or share.
       </p>
       {!drumMode && applyFactorySynthPreset ? (
-        <div className="mb-3 rounded-lg border border-zinc-800/60 bg-zinc-950/40 p-2.5">
-          <p className="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-zinc-500">
-            Starter synth sounds
-          </p>
-          <p className="mb-2 text-[10px] text-zinc-600">
+        <div className={u.starterInset}>
+          <p className={u.labelCaps}>Starter synth sounds</p>
+          <p className={u.bodyDim}>
             Leads, pads, pluck, electric keys, and grand piano, string ensemble, and
             solo strings. Piano and strings use bundled MP3 multi-samples; the rest
             are virtual-analog. Loads all four parts, filter, and effects. Drum kit
@@ -146,20 +143,7 @@ export function PresetBlock({
                     onUserGesture?.()
                     applyFactorySynthPreset(p.getPatch(), p.id)
                   }}
-                  className={`min-w-0 rounded-md px-2 py-1.5 text-left text-xs font-medium active:opacity-90 ${
-                    isOn
-                      ? 'ring-1 ring-zinc-500/80'
-                      : 'border border-zinc-800 bg-zinc-900/90 text-zinc-200'
-                  }`}
-                  style={
-                    isOn
-                      ? {
-                          color: STARTER_PRESET_ON,
-                          backgroundColor: 'rgba(57, 255, 20, 0.09)',
-                          boxShadow: '0 0 0 1px rgba(57, 255, 20, 0.35)',
-                        }
-                      : undefined
-                  }
+                  className={`min-w-0 px-2 py-1.5 text-left text-xs font-medium active:opacity-90 ${u.pill(isOn)}`}
                 >
                   {p.label}
                 </button>
@@ -174,29 +158,21 @@ export function PresetBlock({
           placeholder="Name"
           value={presetName}
           onChange={(e) => setPresetName(e.target.value)}
-          className="min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-950/90 px-2.5 py-2 text-sm text-zinc-200 placeholder:text-zinc-600"
+          className={u.textInput}
           aria-label="New preset name"
         />
-        <button
-          type="button"
-          onClick={save}
-          className="shrink-0 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm font-medium text-zinc-200 active:bg-zinc-800"
-        >
+        <button type="button" onClick={save} className={u.btnPrimary}>
           Save current
         </button>
       </div>
       <div className="mb-2 flex flex-wrap gap-1.5">
-        <button
-          type="button"
-          onClick={exportCurrent}
-          className="rounded-md border border-zinc-800 bg-zinc-900/80 px-2.5 py-1.5 text-xs text-zinc-300"
-        >
+        <button type="button" onClick={exportCurrent} className={u.btnGhostSm}>
           Export to file
         </button>
         <button
           type="button"
           onClick={() => importRef.current?.click()}
-          className="rounded-md border border-zinc-800 bg-zinc-900/80 px-2.5 py-1.5 text-xs text-zinc-300"
+          className={u.btnGhostSm}
         >
           Import from file
         </button>
@@ -209,41 +185,28 @@ export function PresetBlock({
         />
       </div>
       {userPresets.length > 0 ? (
-        <ul className="max-h-40 space-y-1.5 overflow-y-auto border-t border-zinc-800/80 pt-2">
+        <ul
+          className={`max-h-40 space-y-1.5 overflow-y-auto pt-2 ${obsidianChrome || synthwaveChrome ? 'border-t border-hairline' : 'border-t border-zinc-800/80'}`}
+        >
           {userPresets.map((row) => (
-            <li
-              key={row.id}
-              className="flex flex-wrap items-center gap-1.5 rounded-md bg-zinc-950/50 px-2 py-1.5 text-xs"
-            >
-              <span className="min-w-0 flex-1 truncate text-zinc-200">
-                {row.name}
-              </span>
-              <button
-                type="button"
-                onClick={() => load(row)}
-                className="shrink-0 rounded border border-[#39ff14]/40 bg-[#39ff14]/10 px-2 py-0.5 text-[#39ff14]"
-              >
+            <li key={row.id} className={u.presetRow}>
+              <span className={u.presetName}>{row.name}</span>
+              <button type="button" onClick={() => load(row)} className={u.presetLoadBtn}>
                 Load
               </button>
-              <button
-                type="button"
-                onClick={() => exportRow(row)}
-                className="shrink-0 rounded border border-zinc-700 px-2 py-0.5 text-zinc-400"
-              >
+              <button type="button" onClick={() => exportRow(row)} className={u.presetExportBtn}>
                 Export
               </button>
-              <button
-                type="button"
-                onClick={() => remove(row.id)}
-                className="shrink-0 rounded border border-zinc-800 px-2 py-0.5 text-zinc-500"
-              >
+              <button type="button" onClick={() => remove(row.id)} className={u.presetRemoveBtn}>
                 Remove
               </button>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="border-t border-zinc-800/80 pt-2 text-[11px] text-zinc-600">
+        <p
+          className={`pt-2 text-[11px] ${obsidianChrome || synthwaveChrome ? 'border-t border-hairline text-on-surface-variant' : 'border-t border-zinc-800/80 text-zinc-600'}`}
+        >
           No saved presets yet.
         </p>
       )}

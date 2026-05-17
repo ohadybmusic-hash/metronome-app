@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useAuth } from '../context/useAuth.js'
-import { getVisiblePracticePdfLibraries } from '../lib/practicePdfCategories.js'
+import { getVisiblePracticePdfLibraries, PRACTICE_PDF_LIBRARIES } from '../lib/practicePdfCategories.js'
 import { normalizeExerciseLabel } from '../lib/exerciseProgressUi.js'
+import { practiceObsidianChrome } from '../lib/practiceObsidianUi.js'
 import { PracticeSheetPdfEmbed } from './PracticeSheetPdfEmbed.jsx'
 import { PracticePdfLink } from '../context/IosPdfReaderContext.jsx'
 import './PracticePdfLibrary.css'
@@ -52,21 +53,28 @@ export default function PracticePdfLibrary({
   customExercisePlacements = {},
   sheetsByExercise = {},
   visibleLibraries: visibleLibrariesProp,
+  visualLayout,
 } = {}) {
   const { user } = useAuth()
   const [previewUrl, setPreviewUrl] = useState(/** @type {string | null} */ (null))
+  const ob = practiceObsidianChrome(visualLayout)
+
+  const isLocalhostPreview =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
 
   const visibleLibraries = useMemo(() => {
     if (visibleLibrariesProp?.length) return visibleLibrariesProp
+    if (isLocalhostPreview) return PRACTICE_PDF_LIBRARIES
     return getVisiblePracticePdfLibraries(user?.email)
-  }, [visibleLibrariesProp, user?.email])
+  }, [visibleLibrariesProp, isLocalhostPreview, user?.email])
 
-  if (!user?.email || visibleLibraries.length === 0) {
+  if ((!user?.email && !isLocalhostPreview) || visibleLibraries.length === 0) {
     return null
   }
 
   return (
-    <details className="practicePdfLib">
+    <details className={ob ? 'practicePdfLib practicePdfLib--obsidian' : 'practicePdfLib'}>
       <summary>
         <span>Sheet library</span>
         <span className="practicePdfLib__chev" aria-hidden>
@@ -75,7 +83,7 @@ export default function PracticePdfLibrary({
       </summary>
 
       <div className="practicePdfLib__body">
-        <p className="mb-4 text-xs text-[var(--text)]">
+        <p className="mb-4 text-xs text-on-surface-variant">
           Open a main folder, then a section. Course PDFs and your custom exercises (by folder) appear
           here. Custom entries without a PDF link can get one from the practice log.
         </p>
@@ -114,14 +122,14 @@ export default function PracticePdfLibrary({
                               return (
                                 <li
                                   key={item.key}
-                                  className="flex flex-col gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2,var(--surface))] p-2.5 text-sm"
+                                  className="flex flex-col gap-1.5 rounded-xl border border-hairline bg-surface-container-high p-2.5 text-sm"
                                 >
-                                  <span className="leading-snug text-[var(--text-h)]">
+                                  <span className="leading-snug text-on-surface">
                                     {item.title}
                                   </span>
                                   <div className="flex flex-wrap gap-2">
                                     {item.isCustom && !hasHref ? (
-                                      <span className="text-[11px] text-[var(--text)]">
+                                      <span className="text-[11px] text-on-surface-variant">
                                         Add a PDF URL in Practice log for this exercise.
                                       </span>
                                     ) : null}
@@ -167,7 +175,7 @@ export default function PracticePdfLibrary({
             <PracticeSheetPdfEmbed
               title="PDF preview"
               src={previewUrl}
-              iframeClassName="h-[min(65vh,560px)] w-full border-0 bg-[#2a2a2e]"
+              iframeClassName="h-[min(65vh,560px)] w-full border-0 bg-surface-dim"
             />
           </div>
         ) : null}

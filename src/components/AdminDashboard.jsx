@@ -236,7 +236,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="admin">
+    <div className="admin min-h-[100dvh] bg-background px-4 pb-10 pt-6 font-inter text-on-background">
       <header className="admin__header">
         <div>
           <h1 className="admin__title">Admin Dashboard</h1>

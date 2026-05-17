@@ -9,6 +9,9 @@ import {
   scheduleCountSpeech,
   secondsPerQuarter,
 } from './engine.js'
+import { DEFAULT_DRUM_KIT } from '../../../synth-app/src/lib/drumKitDefaults.js'
+import { VOICE_ORDER } from '../../../synth-app/src/lib/drumSamplePlayback.js'
+import { playDrumPad } from '../../../synth-app/src/lib/drumSynthesis.js'
 
 /**
  * Schedules one measure pulse and its subdivisions (beep, voice, haptics, listener callbacks).
@@ -26,6 +29,9 @@ export function scheduleMetronomePulse(
     subdivisionRef,
     beatAccentsRef,
     soundRef,
+    clickVolumeRef,
+    externalDrumKitRef,
+    externalDrumSampleBuffersRef,
     pulseListenersRef,
     beatListenersRef,
     hapticsEnabledRef,
@@ -48,9 +54,14 @@ export function scheduleMetronomePulse(
   const isAccentBeatByMeter = pulseIndex === 0 || meter.accentPulses.has(pulseIndex)
   const isVoiceNumbers = soundRef.current === 'voiceNumbers'
   const isVoiceCount = soundRef.current === 'voiceCount'
+  const clickVolume = Math.max(0, Math.min(1, Number(clickVolumeRef?.current) || 0))
   const whenPrimary = pulseStartTime
   const pulseNumber = pulseIndex + 1
   const secondsPerBeat = 60 / bpmRef.current
+  const drumSoundKey =
+    typeof soundRef.current === 'string' && soundRef.current.startsWith('drum:')
+      ? soundRef.current.slice('drum:'.length)
+      : null
 
   for (let i = 0; i < factor; i += 1) {
     const when = pulseStartTime + i * step
@@ -99,6 +110,24 @@ export function scheduleMetronomePulse(
       }, delayMs)
     }
 
+    if (drumSoundKey) {
+      if (i !== 0) continue
+      if (gapMuted) continue
+
+      // Drums: synth-lab kit (incl. imported samples) if present; otherwise defaults.
+      const kit = externalDrumKitRef?.current ?? DEFAULT_DRUM_KIT
+      const sampleBuffers = externalDrumSampleBuffersRef?.current ?? null
+      const idx = VOICE_ORDER.indexOf(drumSoundKey)
+      if (idx >= 0) {
+        // Use clickVolume as a master trim by temporarily scaling dest with a gain node.
+        const g = ctx.createGain()
+        g.gain.setValueAtTime(clickVolume, when)
+        g.connect(output)
+        playDrumPad(ctx, g, idx, when, kit, sampleBuffers)
+      }
+      continue
+    }
+
     if (isVoiceNumbers) {
       if (i !== 0) continue
       if (gapMuted) continue
@@ -107,13 +136,13 @@ export function scheduleMetronomePulse(
       const countSlot = secondsPerPulse
       if (buf) {
         createVoiceAt(ctx, when, output, buf, {
-          volume: isDownbeat ? 1 : 0.88,
+          volume: (isDownbeat ? 1 : 0.88) * clickVolume,
           maxSlotSeconds: countSlot,
         })
       } else {
         const twoDigit = n >= 10
         scheduleCountSpeech(ctx, when, String(n), {
-          volume: isDownbeat ? 1.0 : 0.9,
+          volume: (isDownbeat ? 1.0 : 0.9) * clickVolume,
           pitch: 1.0,
           slotSeconds: countSlot,
           treatAsLongSyllable: twoDigit,
@@ -131,13 +160,13 @@ export function scheduleMetronomePulse(
       const countSlot = secondsPerPulse
       if (buf) {
         createVoiceAt(ctx, when, output, buf, {
-          volume: beatNum === 1 ? 1 : 0.92,
+          volume: (beatNum === 1 ? 1 : 0.92) * clickVolume,
           maxSlotSeconds: countSlot,
         })
       } else {
         const text = beatNum === 1 ? 'One' : String(beatNum)
         scheduleCountSpeech(ctx, when, text, {
-          volume: beatNum === 1 ? 1.0 : 0.9,
+          volume: (beatNum === 1 ? 1.0 : 0.9) * clickVolume,
           pitch: 1.1,
           slotSeconds: countSlot,
           treatAsLongSyllable: beatNum === 1 || beatNum >= 10,
@@ -152,8 +181,10 @@ export function scheduleMetronomePulse(
 
     const timbre = getAccentTimbre(isPrimary ? beatAccentLevel : 'NORMAL')
     const frequency = isDownbeat ? 1200 : timbre.freq
-    const baseVolume = isDownbeat ? 0.9 : isPrimary ? 0.75 : 0.52
-    const volume = Math.min(1, baseVolume * mul)
+    // Default to the loudest practical internal volume. Users still control the actual device
+    // loudness with the phone's media volume; web apps cannot set system volume.
+    const baseVolume = isDownbeat ? 1.0 : isPrimary ? 1.0 : 0.9
+    const volume = Math.min(1, baseVolume * mul) * clickVolume
 
     if (timbre.kind === 'wood') {
       createWoodblockAt(ctx, when, output, { frequency, volume })

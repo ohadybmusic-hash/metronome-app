@@ -1,9 +1,11 @@
 import { useRef, useState } from 'react'
 import { DRUM_STYLE_PRESETS } from '../lib/drumSamplePlayback.js'
 import { DRUM_PAD_LAYOUT, DRUM_VOICES } from '../lib/drumVoices.js'
+import { synthChromeUi } from '../lib/synthChromeUi.js'
 import { Row } from './FormRow.jsx'
 
 export function DrumEngineBlock({
+  obsidianChrome = false,
   drumKit,
   setDrumKit,
   activeDrumIndex,
@@ -14,6 +16,7 @@ export function DrumEngineBlock({
   clearDrumSample,
   drumSampleBuffers,
 }) {
+  const u = synthChromeUi(obsidianChrome)
   const v = DRUM_VOICES[activeDrumIndex] ?? DRUM_VOICES[0]
   const k = v.key
   const d = drumKit[k]
@@ -43,20 +46,17 @@ export function DrumEngineBlock({
   }
 
   return (
-    <div className="mb-3 rounded-xl border border-zinc-800/80 bg-zinc-900/20 p-3">
-      <p className="mb-1 text-[10px] font-medium uppercase tracking-widest text-zinc-500">
-        Drum engine
-      </p>
-      <p className="mb-2 text-[11px] text-zinc-500">
-        Choose a <strong className="font-medium text-zinc-400">style</strong> for
-        synthesizer kits, or load a <strong className="font-medium text-zinc-400">WAV / MP3</strong> per pad. Samples stay in memory until you clear them or load a preset (re-import files after refresh).
+    <div className={`mb-3 ${u.panel}`}>
+      <p className={`mb-1 ${u.labelCapsTight}`}>Drum engine</p>
+      <p className={u.body}>
+        Choose a <strong className={u.strongAlt}>style</strong> for synthesizer kits, or load a{' '}
+        <strong className={u.strongAlt}>WAV / MP3</strong> per pad. Samples stay in memory until you clear them or
+        load a preset (re-import files after refresh).
       </p>
       <div className="mb-3">
-        <label className="mb-1 block text-[10px] font-medium uppercase tracking-widest text-zinc-500">
-          Style preset (synthesis)
-        </label>
+        <label className={`mb-1 block ${u.labelCapsTight}`}>Style preset (synthesis)</label>
         <select
-          className="w-full rounded-lg border border-zinc-800 bg-zinc-950/90 py-2 pl-2 pr-8 text-sm text-zinc-200"
+          className={u.select}
           value={drumStyleId}
           onChange={(e) => {
             const id = e.target.value
@@ -72,11 +72,9 @@ export function DrumEngineBlock({
             </option>
           ))}
         </select>
-        <p className="mt-1 text-[10px] text-zinc-600">{styleInfo?.description}</p>
+        <p className={`mt-1 ${u.bodyDim}`}>{styleInfo?.description}</p>
       </div>
-      <p className="mb-1 text-[10px] font-medium uppercase tracking-widest text-zinc-500">
-        Pads (same layout as the keyboard row)
-      </p>
+      <p className={`mb-1 ${u.labelCapsTight}`}>Pads (same layout as the keyboard row)</p>
       <div className="mb-3 grid w-full max-w-sm grid-cols-2 grid-rows-4 gap-1.5 sm:max-w-md">
         {DRUM_PAD_LAYOUT.map((c) => {
           const o = DRUM_VOICES[c.i]
@@ -90,8 +88,10 @@ export function DrumEngineBlock({
               }}
               className={`min-w-0 rounded-md px-2 py-1.5 text-center text-[10px] font-bold leading-tight tracking-wide sm:py-2 sm:text-xs ${
                 activeDrumIndex === c.i
-                  ? 'ring-1 ring-zinc-500'
-                  : 'bg-zinc-900/80 text-zinc-300 ring-1 ring-zinc-800'
+                  ? obsidianChrome
+                    ? 'ring-1 ring-chrome/55'
+                    : 'ring-1 ring-zinc-500'
+                  : u.pillOff
               }`}
               style={
                 activeDrumIndex === c.i
@@ -108,9 +108,7 @@ export function DrumEngineBlock({
           )
         })}
       </div>
-      <p className="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-zinc-500">
-        {v.label} — sound
-      </p>
+      <p className={`mb-1.5 ${u.labelCaps}`}>{v.label} — sound</p>
       <div className="mb-3 flex flex-wrap gap-1.5">
         <button
           type="button"
@@ -118,11 +116,7 @@ export function DrumEngineBlock({
             onUserGesture?.()
             clearDrumSample(k)
           }}
-          className={`rounded-md px-2.5 py-1.5 text-xs font-medium ${
-            !isSample
-              ? 'bg-[#39ff14]/20 text-[#39ff14] ring-1 ring-[#39ff14]/50'
-              : 'bg-zinc-900/80 text-zinc-300 ring-1 ring-zinc-800'
-          }`}
+          className={u.pill(!isSample)}
         >
           Synthesized
         </button>
@@ -132,11 +126,7 @@ export function DrumEngineBlock({
             onUserGesture?.()
             patch({ source: 'sample' })
           }}
-          className={`rounded-md px-2.5 py-1.5 text-xs font-medium ${
-            isSample
-              ? 'bg-[#39ff14]/20 text-[#39ff14] ring-1 ring-[#39ff14]/50'
-              : 'bg-zinc-900/80 text-zinc-300 ring-1 ring-zinc-800'
-          }`}
+          className={u.pill(isSample)}
         >
           From file
         </button>
@@ -161,18 +151,18 @@ export function DrumEngineBlock({
                 onUserGesture?.()
                 fileRef.current?.click()
               }}
-              className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-200"
+              className={u.fileBtn}
             >
               Choose audio file…
             </button>
-            <span className="truncate text-[11px] text-zinc-500">
+            <span className={u.truncateHint}>
               {d.sampleName || (hasBuffer ? 'Loaded' : 'No file loaded')}
             </span>
           </div>
-          <p className="text-[10px] text-zinc-600">
+          <p className={u.bodyDim}>
             New BufferSource on each hit. If “Sample” is on but no file is loaded, the synth sound plays instead.
           </p>
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Playback speed"
             value={d.sampleRate ?? 1}
             onChange={(n) => patch({ sampleRate: n })}
@@ -181,7 +171,7 @@ export function DrumEngineBlock({
             step={0.05}
             fmt={(n) => `${n.toFixed(2)}×`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Level"
             value={d.level}
             onChange={(n) => patch({ level: n })}
@@ -194,7 +184,7 @@ export function DrumEngineBlock({
       ) : null}
       {!isSample && k === 'kick' ? (
         <div className="space-y-2.5">
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Start pitch (Hz)"
             value={d.startHz}
             onChange={(n) => patch({ startHz: n })}
@@ -203,7 +193,7 @@ export function DrumEngineBlock({
             step={1}
             fmt={(n) => `${Math.round(n)} Hz`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="End pitch (Hz)"
             value={d.endHz}
             onChange={(n) => patch({ endHz: n })}
@@ -212,7 +202,7 @@ export function DrumEngineBlock({
             step={1}
             fmt={(n) => `${Math.round(n)} Hz`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Pitch sweep"
             value={d.sweepS}
             onChange={(n) => patch({ sweepS: n })}
@@ -221,7 +211,7 @@ export function DrumEngineBlock({
             step={0.005}
             fmt={(n) => `${n.toFixed(2)} s`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Amp attack"
             value={d.attackS}
             onChange={(n) => patch({ attackS: n })}
@@ -230,7 +220,7 @@ export function DrumEngineBlock({
             step={0.0005}
             fmt={(n) => `${(n * 1000).toFixed(0)} ms`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Body / decay"
             value={d.bodyS}
             onChange={(n) => patch({ bodyS: n })}
@@ -239,7 +229,7 @@ export function DrumEngineBlock({
             step={0.01}
             fmt={(n) => `${n.toFixed(2)} s`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Level"
             value={d.level}
             onChange={(n) => patch({ level: n })}
@@ -252,10 +242,10 @@ export function DrumEngineBlock({
       ) : null}
       {!isSample && k === 'snare' ? (
         <div className="space-y-2.5">
-          <p className="text-[10px] font-medium uppercase tracking-widest text-zinc-600">
+          <p className={u.sectionLabelDim}>
             Body (sine)
           </p>
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Body pitch"
             value={d.bodyHz}
             onChange={(n) => patch({ bodyHz: n })}
@@ -264,7 +254,7 @@ export function DrumEngineBlock({
             step={1}
             fmt={(n) => `${Math.round(n)} Hz`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Body amount"
             value={d.bodyLevel}
             onChange={(n) => patch({ bodyLevel: n })}
@@ -273,7 +263,7 @@ export function DrumEngineBlock({
             step={0.01}
             fmt={(n) => n.toFixed(2)}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Body decay"
             value={d.bodyDecayS}
             onChange={(n) => patch({ bodyDecayS: n })}
@@ -282,10 +272,10 @@ export function DrumEngineBlock({
             step={0.005}
             fmt={(n) => `${n.toFixed(3)} s`}
           />
-          <p className="pt-1 text-[10px] font-medium uppercase tracking-widest text-zinc-600">
+          <p className={`pt-1 ${u.sectionLabelDim}`}>
             Wire / snap (noise)
           </p>
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Snap center"
             value={d.snapHz}
             onChange={(n) => patch({ snapHz: n })}
@@ -294,7 +284,7 @@ export function DrumEngineBlock({
             step={25}
             fmt={(n) => `${Math.round(n)} Hz`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Snap focus (Q)"
             value={d.snapQ}
             onChange={(n) => patch({ snapQ: n })}
@@ -303,7 +293,7 @@ export function DrumEngineBlock({
             step={0.05}
             fmt={(n) => n.toFixed(2)}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Noise attack"
             value={d.noiseAttackS}
             onChange={(n) => patch({ noiseAttackS: n })}
@@ -312,7 +302,7 @@ export function DrumEngineBlock({
             step={0.0002}
             fmt={(n) => `${(n * 1000).toFixed(0)} ms`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Noise decay"
             value={d.noiseDecayS}
             onChange={(n) => patch({ noiseDecayS: n })}
@@ -321,7 +311,7 @@ export function DrumEngineBlock({
             step={0.01}
             fmt={(n) => `${n.toFixed(2)} s`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Output level"
             value={d.level}
             onChange={(n) => patch({ level: n })}
@@ -334,10 +324,10 @@ export function DrumEngineBlock({
       ) : null}
       {!isSample && isCymbalNoise ? (
         <div className="space-y-2.5">
-          <p className="text-[10px] text-zinc-600">
+          <p className={u.bodyDim}>
             Noise + high-pass (hi-hat, ride, or washy crash-ride)
           </p>
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="High-pass (Hz)"
             value={d.highpassHz}
             onChange={(n) => patch({ highpassHz: n })}
@@ -346,7 +336,7 @@ export function DrumEngineBlock({
             step={50}
             fmt={(n) => `${Math.round(n)} Hz`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Resonance (Q)"
             value={d.q}
             onChange={(n) => patch({ q: n })}
@@ -355,7 +345,7 @@ export function DrumEngineBlock({
             step={0.05}
             fmt={(n) => n.toFixed(2)}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Attack"
             value={d.attackS}
             onChange={(n) => patch({ attackS: n })}
@@ -364,7 +354,7 @@ export function DrumEngineBlock({
             step={0.0002}
             fmt={(n) => `${(n * 1000).toFixed(0)} ms`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Decay"
             value={d.decayS}
             onChange={(n) => patch({ decayS: n })}
@@ -373,7 +363,7 @@ export function DrumEngineBlock({
             step={0.01}
             fmt={(n) => `${n.toFixed(2)} s`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Level"
             value={d.level}
             onChange={(n) => patch({ level: n })}
@@ -386,12 +376,12 @@ export function DrumEngineBlock({
       ) : null}
       {!isSample && isClapOrCrash ? (
         <div className="space-y-2.5">
-          <p className="text-[10px] text-zinc-600">
+          <p className={u.bodyDim}>
             {k === 'crash1'
               ? 'Noise + bandpass (long crash; higher decay range)'
               : 'Noise + bandpass (hand clap)'}
           </p>
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Bandpass (Hz)"
             value={d.bandHz}
             onChange={(n) => patch({ bandHz: n })}
@@ -400,7 +390,7 @@ export function DrumEngineBlock({
             step={10}
             fmt={(n) => `${Math.round(n)} Hz`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Resonance (Q)"
             value={d.q}
             onChange={(n) => patch({ q: n })}
@@ -409,7 +399,7 @@ export function DrumEngineBlock({
             step={0.05}
             fmt={(n) => n.toFixed(2)}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Attack"
             value={d.attackS}
             onChange={(n) => patch({ attackS: n })}
@@ -418,7 +408,7 @@ export function DrumEngineBlock({
             step={0.0005}
             fmt={(n) => `${(n * 1000).toFixed(0)} ms`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Decay"
             value={d.decayS}
             onChange={(n) => patch({ decayS: n })}
@@ -427,7 +417,7 @@ export function DrumEngineBlock({
             step={0.01}
             fmt={(n) => `${n.toFixed(2)} s`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Level"
             value={d.level}
             onChange={(n) => patch({ level: n })}
@@ -440,8 +430,8 @@ export function DrumEngineBlock({
       ) : null}
       {!isSample && k === 'cowbell' ? (
         <div className="space-y-2.5">
-          <p className="text-[10px] text-zinc-600">Two detuned square oscillators (metallic body)</p>
-          <Row
+          <p className={u.bodyDim}>Two detuned square oscillators (metallic body)</p>
+          <Row obsidianChrome={obsidianChrome}
             label="Low tone (Hz)"
             value={d.baseHz}
             onChange={(n) => patch({ baseHz: n })}
@@ -450,7 +440,7 @@ export function DrumEngineBlock({
             step={1}
             fmt={(n) => `${Math.round(n)} Hz`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="High tone (Hz)"
             value={d.secondHz}
             onChange={(n) => patch({ secondHz: n })}
@@ -459,7 +449,7 @@ export function DrumEngineBlock({
             step={1}
             fmt={(n) => `${Math.round(n)} Hz`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="High tone mix"
             value={d.secondMix}
             onChange={(n) => patch({ secondMix: n })}
@@ -468,7 +458,7 @@ export function DrumEngineBlock({
             step={0.02}
             fmt={(n) => n.toFixed(2)}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Attack"
             value={d.attackS}
             onChange={(n) => patch({ attackS: n })}
@@ -477,7 +467,7 @@ export function DrumEngineBlock({
             step={0.0001}
             fmt={(n) => `${(n * 1000).toFixed(0)} ms`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Decay"
             value={d.decayS}
             onChange={(n) => patch({ decayS: n })}
@@ -486,7 +476,7 @@ export function DrumEngineBlock({
             step={0.01}
             fmt={(n) => `${n.toFixed(2)} s`}
           />
-          <Row
+          <Row obsidianChrome={obsidianChrome}
             label="Level"
             value={d.level}
             onChange={(n) => patch({ level: n })}

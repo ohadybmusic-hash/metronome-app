@@ -2,96 +2,519 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Tailwind semantic colors read `--ds-*` (see tailwind.config.js).
+ * Layouts: `obsidian` (default), `light` (studio), `synthwave` (neon grid + Space Grotesk).
+ */
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  /* Aligned with Metronome v3 + DESIGN_RULES (orange) — not legacy purple / random defaults */
-  --accent: #c8440a;
-  --accent-bg: rgba(200, 68, 10, 0.1);
-  --accent-border: rgba(200, 68, 10, 0.45);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  color-scheme: dark;
 
-  /* Shape + motion */
-  --r-sm: 10px;
-  --r-md: 16px;
-  --r-lg: 22px;
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Canvas matches Stitch obsidian HTML body (`bg-[#0b0c0e]`); semantic `surface` stays #121315 for panels. */
+  --ds-background: #0b0c0e;
+  --ds-on-background: #e3e2e5;
+  --ds-surface: #121315;
+  --ds-on-surface: #e3e2e5;
+  --ds-on-surface-variant: #bec8ca;
+  --ds-surface-dim: #121315;
+  --ds-surface-container-lowest: #0d0e10;
+  --ds-surface-container-low: #1b1c1e;
+  --ds-surface-container: #1f2022;
+  --ds-surface-container-high: #292a2c;
+  --ds-surface-container-highest: #343537;
+  --ds-surface-variant: #343537;
+  --ds-surface-bright: #38393b;
+  --ds-outline: #899294;
+  --ds-outline-variant: #3f484a;
+  --ds-on-primary: #00363d;
+  --ds-primary-container: #529ba6;
+  --ds-on-primary-container: #002f35;
+  --ds-primary-fixed: #a6eefa;
+  --ds-primary-fixed-dim: #8ad2de;
+  --ds-on-primary-fixed: #001f24;
+  --ds-on-primary-fixed-variant: #004f57;
+  --ds-secondary: #ffb688;
+  --ds-on-secondary: #512400;
+  --ds-secondary-container: #a24e00;
+  --ds-on-secondary-container: #ffdeca;
+  --ds-secondary-fixed: #ffdbc7;
+  --ds-secondary-fixed-dim: #ffb688;
+  --ds-on-secondary-fixed: #311300;
+  --ds-on-secondary-fixed-variant: #733600;
+  --ds-tertiary: #76d5e0;
+  --ds-on-tertiary: #00363b;
+  --ds-tertiary-container: #399ea8;
+  --ds-on-tertiary-container: #002f33;
+  --ds-tertiary-fixed: #93f1fd;
+  --ds-tertiary-fixed-dim: #76d5e0;
+  --ds-on-tertiary-fixed: #001f23;
+  --ds-on-tertiary-fixed-variant: #004f56;
+  --ds-error: #ffb4ab;
+  --ds-on-error: #690005;
+  --ds-error-container: #93000a;
+  --ds-on-error-container: #ffdad6;
+  --ds-surface-tint: #8ad2de;
+  --ds-inverse-surface: #e3e2e5;
+  --ds-inverse-on-surface: #303033;
+  --ds-inverse-primary: #126872;
+  --ds-chrome-muted: #45494e;
+  --ds-app-bar: #0b0c0e;
+  --ds-chrome-hover: #6ecdd8;
 
-  --sans: Inter, system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: Inter, system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --ds-primary-rgb: 138 210 222;
+  --ds-chrome-rgb: 79 152 163;
+  --ds-hairline-rgb: 30 33 38;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
+  --ds-nav-bg: #16181c;
+  --ds-nav-border: #1e2126;
+  --ds-nav-shadow: 0 -4px 12px rgba(0, 0, 0, 0.45);
+
+  --ds-shadow:
+    rgba(0, 0, 0, 0.45) 0 10px 15px -3px, rgba(0, 0, 0, 0.28) 0 4px 6px -2px;
+  --ds-font-sans: Inter, system-ui, 'Segoe UI', Roboto, sans-serif;
+  --ds-font-mono: ui-monospace, Consolas, monospace;
+  --ds-font-heading: Inter, system-ui, 'Segoe UI', Roboto, sans-serif;
+  --ds-motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Radii: `design-refs/stitch-precision-tempo-obsidian-final` (same scale as light — DEFAULT/lg/xl/full) */
+  --ds-rounded-ds: 0.125rem;
+  --ds-rounded-ds-lg: 0.25rem;
+  --ds-rounded-ds-xl: 0.5rem;
+  --ds-rounded-ds-full: 0.75rem;
+  --ds-radius-sm: var(--ds-rounded-ds);
+  --ds-radius-md: var(--ds-rounded-ds-lg);
+  --ds-radius-lg: var(--ds-rounded-ds-xl);
+  /* Obsidian + synthwave shells: top bar h-16 in Stitch HTML */
+  --ds-shell-header-stack: 4rem;
+
+  /* Stitch obsidian/light body-md baseline (14px / 1.5); synthwave overrides to 16px */
+  font: 14px/1.5 var(--ds-font-sans);
+  letter-spacing: 0;
+  color: var(--ds-on-background);
+  background: var(--ds-background);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
-/* Explicit theme override (used by Dark Mode toggle). */
-:root[data-theme='light'] {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #c8440a;
-  --accent-bg: rgba(200, 68, 10, 0.1);
-  --accent-border: rgba(200, 68, 10, 0.45);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
-  --surface: #ffffff;
+:root[data-visual-layout='light'] {
+  color-scheme: light;
+
+  font: 14px/1.42857 var(--ds-font-sans);
+  letter-spacing: 0;
+
+  --ds-background: #f8f9fb;
+  --ds-on-background: #191c1e;
+  --ds-surface: #f8f9fb;
+  --ds-on-surface: #191c1e;
+  --ds-on-surface-variant: #44474d;
+  --ds-surface-dim: #d9dadc;
+  --ds-surface-container-lowest: #ffffff;
+  --ds-surface-container-low: #f2f4f6;
+  --ds-surface-container: #edeef0;
+  --ds-surface-container-high: #e7e8ea;
+  --ds-surface-container-highest: #e1e2e4;
+  --ds-surface-variant: #e1e2e4;
+  --ds-surface-bright: #f8f9fb;
+  --ds-outline: #74777d;
+  --ds-outline-variant: #c4c6cd;
+  --ds-on-primary: #ffffff;
+  --ds-primary-container: #2e4057;
+  --ds-on-primary-container: #99acc7;
+  --ds-primary-fixed: #d2e4ff;
+  --ds-primary-fixed-dim: #b5c8e4;
+  --ds-on-primary-fixed: #081c32;
+  --ds-on-primary-fixed-variant: #36485f;
+  --ds-secondary: #395f94;
+  --ds-on-secondary: #ffffff;
+  --ds-secondary-container: #9ec2fe;
+  --ds-on-secondary-container: #284f83;
+  --ds-secondary-fixed: #d5e3ff;
+  --ds-secondary-fixed-dim: #a7c8ff;
+  --ds-on-secondary-fixed: #001c3b;
+  --ds-on-secondary-fixed-variant: #1e477b;
+  --ds-tertiary: #222a2f;
+  --ds-on-tertiary: #ffffff;
+  --ds-tertiary-container: #384046;
+  --ds-on-tertiary-container: #a3abb2;
+  --ds-tertiary-fixed: #dce3eb;
+  --ds-tertiary-fixed-dim: #bfc7ce;
+  --ds-on-tertiary-fixed: #151d22;
+  --ds-on-tertiary-fixed-variant: #40484e;
+  --ds-error: #ba1a1a;
+  --ds-on-error: #ffffff;
+  --ds-error-container: #ffdad6;
+  --ds-on-error-container: #93000a;
+  --ds-surface-tint: #4e6078;
+  --ds-inverse-surface: #2e3132;
+  --ds-inverse-on-surface: #f0f1f3;
+  --ds-inverse-primary: #b5c8e4;
+  --ds-chrome-muted: #64748b;
+  --ds-app-bar: #ffffff;
+  --ds-chrome-hover: #395f94;
+
+  --ds-primary-rgb: 23 42 64;
+  --ds-chrome-rgb: 46 64 87;
+  --ds-hairline-rgb: 226 232 240;
+
+  --ds-nav-bg: rgb(255 255 255 / 0.92);
+  --ds-nav-border: #e2e8f0;
+  --ds-nav-shadow: 0 -4px 6px -1px rgb(0 0 0 / 0.05);
+
+  --ds-shadow:
+    rgba(15, 23, 42, 0.06) 0 10px 15px -3px, rgba(15, 23, 42, 0.04) 0 4px 6px -2px;
+
+  --ds-shell-header-stack: 4.65rem;
+
+  /* Radii from `design-refs/stitch-precision-tempo-light` */
+  --ds-rounded-ds: 0.125rem;
+  --ds-rounded-ds-lg: 0.25rem;
+  --ds-rounded-ds-xl: 0.5rem;
+  --ds-rounded-ds-full: 0.75rem;
+  --ds-radius-sm: var(--ds-rounded-ds);
+  --ds-radius-md: var(--ds-rounded-ds-lg);
+  --ds-radius-lg: var(--ds-rounded-ds-xl);
+
+  /* Stitch light HTML mocks — rack / LCD surfaces (see design-refs/stitch-precision-tempo-light) */
+  --ds-rack-border: #d1d9e0;
 }
 
-:root[data-theme='dark'] {
-  /* Warm Analog palette */
-  --text: #a8a29e; /* stone-400 */
-  --text-h: #fafaf9; /* stone-50 */
-  --bg: #12110f; /* warm near-black */
-  --surface: #1a1916; /* warm surface */
-  --surface-2: #23211d; /* elevated */
-  --border: rgba(250, 250, 249, 0.08); /* hairline */
-  --code-bg: #1f1e1a;
-  --accent: #c8440a; /* v3 orange — aligned with Metronome / DESIGN_RULES */
-  --accent-bg: rgba(200, 68, 10, 0.14);
-  --accent-border: rgba(200, 68, 10, 0.45);
-  --social-bg: rgba(42, 39, 35, 0.55);
-  --danger: #ef4444; /* red-500 */
-  --danger-bg: rgba(239, 68, 68, 0.14);
-  --danger-border: rgba(239, 68, 68, 0.65);
-  --shadow:
-    rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+/* Synthwave shell — Stitch neon palette + cyan grid (MATRIX_SYNC HTML). */
+:root[data-visual-layout='synthwave'] {
+  color-scheme: dark;
+
+  /* Body uses `bg-surface-dim` in Stitch mock (#121222); header/nav stay #0e0e1e. */
+  --ds-background: #121222;
+  --ds-on-background: #e3e0f7;
+  --ds-surface: #121222;
+  --ds-on-surface: #e3e0f7;
+  --ds-on-surface-variant: #dcbed4;
+  --ds-surface-dim: #121222;
+  --ds-surface-container-lowest: #0d0d1c;
+  --ds-surface-container-low: #1a1a2a;
+  --ds-surface-container: #1e1e2f;
+  --ds-surface-container-high: #29283a;
+  --ds-surface-container-highest: #333345;
+  --ds-surface-variant: #333345;
+  --ds-surface-bright: #383749;
+  --ds-outline: #a4899d;
+  --ds-outline-variant: #564052;
+  --ds-on-primary: #5b005b;
+  --ds-primary-container: #ff00ff;
+  --ds-on-primary-container: #510051;
+  --ds-primary-fixed: #ffd7f5;
+  --ds-primary-fixed-dim: #ffabf3;
+  --ds-on-primary-fixed: #380038;
+  --ds-on-primary-fixed-variant: #810081;
+  --ds-secondary: #ffffff;
+  --ds-on-secondary: #003737;
+  --ds-secondary-container: #00fbfb;
+  --ds-on-secondary-container: #007070;
+  --ds-secondary-fixed: #00fbfb;
+  --ds-secondary-fixed-dim: #00dddd;
+  --ds-on-secondary-fixed: #002020;
+  --ds-on-secondary-fixed-variant: #004f4f;
+  --ds-tertiary: #d1bcff;
+  --ds-on-tertiary: #3c0090;
+  --ds-tertiary-container: #a179ff;
+  --ds-on-tertiary-container: #350081;
+  --ds-tertiary-fixed: #e9ddff;
+  --ds-tertiary-fixed-dim: #d1bcff;
+  --ds-on-tertiary-fixed: #23005b;
+  --ds-on-tertiary-fixed-variant: #5700c9;
+  --ds-error: #ffb4ab;
+  --ds-on-error: #690005;
+  --ds-error-container: #93000a;
+  --ds-on-error-container: #ffdad6;
+  --ds-surface-tint: #ffabf3;
+  --ds-inverse-surface: #e3e0f7;
+  --ds-inverse-on-surface: #2f2f40;
+  --ds-inverse-primary: #a900a9;
+  --ds-chrome-muted: #a4899d;
+  --ds-app-bar: rgb(14 14 30 / 0.94);
+  --ds-chrome-hover: #ffabf3;
+
+  --ds-primary-rgb: 255 171 243;
+  --ds-chrome-rgb: 0 251 251;
+  /* Stitch shell borders: `border-cyan-400/30` → Tailwind cyan-400 */
+  --ds-hairline-rgb: 34 211 238;
+
+  /* Radii from `design-refs/stitch-precision-tempo-synthwave` */
+  --ds-rounded-ds: 0.25rem;
+  --ds-rounded-ds-lg: 0.5rem;
+  --ds-rounded-ds-xl: 0.75rem;
+  --ds-rounded-ds-full: 9999px;
+  --ds-radius-sm: var(--ds-rounded-ds);
+  --ds-radius-md: var(--ds-rounded-ds-lg);
+  --ds-radius-lg: var(--ds-rounded-ds-xl);
+
+  --ds-nav-bg: rgb(14 14 30 / 0.94);
+  /* Bottom bar: `border-pink-500/30` in MATRIX_SYNC HTML */
+  --ds-nav-border: rgb(236 72 153 / 0.3);
+  --ds-nav-shadow: 0 -10px 30px rgb(14 14 30 / 0.92);
+
+  --ds-shadow:
+    rgb(236 72 153 / 0.08) 0 12px 28px -8px, rgb(0 251 251 / 0.06) 0 6px 14px -6px;
+  --ds-font-sans: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --ds-font-mono: ui-monospace, Consolas, monospace;
+  --ds-font-heading: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+
+  font: 16px/1.5 var(--ds-font-sans);
+  letter-spacing: 0.01em;
 }
 
-/* We explicitly control theme via data-theme; avoid OS overrides. */
+:root[data-visual-layout='synthwave'] body {
+  position: relative;
+}
+
+:root[data-visual-layout='synthwave'] body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.4;
+  background-image:
+    linear-gradient(rgb(0 255 255 / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(0 255 255 / 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* `.scanline-overlay` from Stitch synthwave HTML (above chrome at z-50). */
+:root[data-visual-layout='synthwave'] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgb(18 16 16 / 0) 50%, rgb(0 0 0 / 0.25) 50%),
+    linear-gradient(
+      90deg,
+      rgb(255 0 0 / 0.06),
+      rgb(0 255 0 / 0.02),
+      rgb(0 0 255 / 0.06)
+    );
+  background-size:
+    100% 4px,
+    3px 100%;
+}
+
+:root[data-visual-layout='synthwave'] #root {
+  position: relative;
+  z-index: 2;
+}
+
+/* Bottom tab bar — Stitch shell: DS nav tokens + frosted bar + hairline top edge */
+.app-bottom-nav {
+  border-top: 1px solid var(--ds-nav-border);
+  background: var(--ds-nav-bg);
+  box-shadow:
+    inset 0 1px 0 rgb(var(--ds-hairline-rgb) / 0.22),
+    var(--ds-nav-shadow);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* Stitch light bottom bar — `08-metronome-light-main.html` / `09-tuner-light.html` */
+:root[data-visual-layout='light'] .app-bottom-nav {
+  border-top-width: 2px;
+  border-top-color: rgb(226 232 240); /* slate-200 */
+  border-radius: 0.5rem 0.5rem 0 0; /* rounded-t-lg */
+  background: #ffffff;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding-top: 0.5rem;
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+.shell-title-drop {
+  filter: drop-shadow(0 0 10px rgb(var(--ds-primary-rgb) / 0.38));
+}
+
+.sw-stitch-neon-glow-pink {
+  box-shadow:
+    0 0 15px rgba(255, 0, 255, 0.5),
+    inset 0 0 5px rgba(255, 0, 255, 0.2);
+}
+
+.sw-stitch-tempo-glow {
+  box-shadow:
+    0 0 40px rgba(236, 72, 153, 0.4),
+    inset 0 0 20px rgba(236, 72, 153, 0.2);
+}
+
+.sw-stitch-horizon-line {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #00ffff, #ff00ff, #00ffff, transparent);
+  box-shadow: 0 0 20px #00ffff;
+}
+
+/* Stitch light tuner mock — horizontal fade on needle window */
+:root[data-visual-layout='light'] .tuner-needle-mask-well {
+  mask-image: linear-gradient(to right, transparent, black 12%, black 88%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 12%, black 88%, transparent);
+}
+
+:root[data-visual-layout='light'] header[data-app-shell-header] {
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.06);
+}
+
+:root[data-visual-layout='light'] .shell-title-drop {
+  filter: none;
+}
+
+:root[data-visual-layout='synthwave'] .app-bottom-nav {
+  min-height: 5rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--ds-nav-border);
+  background: rgb(14 14 30 / 0.9);
+  box-shadow:
+    inset 0 1px 0 rgb(var(--ds-hairline-rgb) / 0.12),
+    0 -4px 20px rgb(236 72 153 / 0.2);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+/* Stitch synthwave header + chrome (MATRIX_SYNC shell) */
+:root[data-visual-layout='synthwave'] header[data-app-shell-header] {
+  height: 4rem;
+  min-height: 4rem;
+  background: #0e0e1e;
+  border-bottom: 1px solid rgb(34 211 238 / 0.3);
+  box-shadow: 0 4px 20px rgb(0 255 255 / 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+:root[data-visual-layout='synthwave'] .shell-title-drop {
+  filter: drop-shadow(0 0 10px rgb(var(--ds-primary-rgb) / 0.72));
+}
+
+/* Obsidian Synth Lab — Stitch HTML (LCD inset, scanlines, FX glow, knobs) */
+.synth-lab-lcd-inset {
+  box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.5);
+}
+
+.synth-lab-scanline {
+  background: linear-gradient(to bottom, rgb(18 19 21 / 0) 50%, rgb(0 0 0 / 0.1) 50%);
+  background-size: 100% 2px;
+}
+
+.synth-lab-active-glow {
+  box-shadow: 0 0 10px rgb(var(--ds-chrome-rgb) / 0.55);
+}
+
+.synth-lab-knob-shadow {
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.3),
+    0 2px 4px -1px rgb(0 0 0 / 0.2);
+}
+
+/* Obsidian Studio Rack mock — CRT-style composite scanlines over LCD scopes */
+.synth-lab-rack-scanline-overlay {
+  background-image:
+    linear-gradient(rgb(18 16 16 / 0) 50%, rgb(0 0 0 / 0.2) 50%),
+    linear-gradient(90deg, rgb(255 0 0 / 0.03), rgb(0 255 0 / 0.01), rgb(0 0 255 / 0.03));
+  background-size:
+    100% 2px,
+    3px 100%;
+  pointer-events: none;
+}
+
+.synth-lab-rack-lcd-glow {
+  text-shadow: 0 0 8px rgb(var(--ds-primary-rgb) / 0.6);
+}
+
+/* Synthwave Synth Lab — Stitch HTML (neon LCD, composite scanlines, pad chrome) */
+:root[data-visual-layout='synthwave'] .sw-neon-border-cyan {
+  border: 1px solid rgb(34 211 238 / 0.48);
+  box-shadow:
+    inset 0 0 10px rgb(0 255 255 / 0.18),
+    0 0 5px rgb(0 255 255 / 0.15);
+}
+
+:root[data-visual-layout='synthwave'] .sw-neon-border-pink {
+  border: 1px solid rgb(236 72 153 / 0.52);
+  box-shadow:
+    inset 0 0 10px rgb(236 72 153 / 0.18),
+    0 0 5px rgb(236 72 153 / 0.15);
+}
+
+:root[data-visual-layout='synthwave'] .sw-lcd-glow-cyan {
+  text-shadow:
+    0 0 10px rgb(34 211 238 / 0.72),
+    0 0 18px rgb(0 255 255 / 0.35);
+}
+
+:root[data-visual-layout='synthwave'] .sw-synth-scanlines-overlay {
+  background-image:
+    linear-gradient(rgb(18 16 16 / 0) 50%, rgb(0 0 0 / 0.25) 50%),
+    linear-gradient(90deg, rgb(255 0 0 / 0.06), rgb(0 255 0 / 0.02), rgb(0 0 255 / 0.06));
+  background-size:
+    100% 4px,
+    3px 100%;
+}
+
+:root[data-visual-layout='synthwave'] .lcd-inset-sw {
+  box-shadow: inset 0 0 14px rgb(0 0 0 / 0.78);
+}
+
+:root[data-visual-layout='synthwave'] .glow-pink-sw {
+  box-shadow:
+    0 0 15px rgb(236 72 153 / 0.45),
+    0 0 28px rgb(236 72 153 / 0.18);
+}
+
+:root[data-visual-layout='synthwave'] .sw-drum-pad-hit:active {
+  box-shadow: 0 0 20px rgb(236 72 153 / 0.65);
+}
+
+/* Primary readouts — magenta bloom (mock `.lcd-flicker`). */
+.sw-lcd-flicker {
+  text-shadow: 0 0 15px rgb(var(--ds-primary-rgb) / 0.72);
+}
+
+.sw-needle-glow {
+  filter: drop-shadow(0 0 10px rgb(var(--ds-primary-rgb) / 0.95));
+}
+
+:root[data-visual-layout='synthwave'] .inset-lcd {
+  box-shadow: inset 0 0 12px rgb(0 251 251 / 0.09);
+}
+
+:root[data-visual-layout='synthwave'] .ds-recessed-panel {
+  box-shadow:
+    inset 0 0 14px rgb(255 171 243 / 0.06),
+    inset 0 2px 5px rgb(0 0 0 / 0.55);
+}
+
+.chrome-active-line-shadow {
+  box-shadow: 0 0 8px rgb(var(--ds-chrome-rgb) / 0.45);
+}
+
+.chrome-text-glow-strong {
+  filter: drop-shadow(0 0 10px rgb(var(--ds-chrome-rgb) / 0.55));
+}
+
+:root[data-visual-layout='light'] .inset-lcd {
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+:root[data-visual-layout='synthwave'] .teal-glow {
+  filter: drop-shadow(0 0 6px rgb(var(--ds-chrome-rgb) / 0.65));
+}
 
 body {
   margin: 0;
   /* Reduce accidental zoom gestures (pinch zoom is locked by viewport meta). */
   touch-action: manipulation;
-  background: var(--bg);
-  color: var(--text);
-}
-
-html {
+  background: var(--ds-background);
+  color: var(--ds-on-background);
   min-height: 100dvh;
 }
 
-body {
+html {
   min-height: 100dvh;
 }
 
@@ -141,9 +564,9 @@ body {
 
 h1,
 h2 {
-  font-family: var(--heading);
+  font-family: var(--ds-font-heading);
   font-weight: 500;
-  color: var(--text-h);
+  color: var(--ds-on-background);
 }
 
 h1 {
@@ -170,17 +593,17 @@ p {
 
 code,
 .counter {
-  font-family: var(--mono);
+  font-family: var(--ds-font-mono);
   display: inline-flex;
   border-radius: 4px;
-  color: var(--text-h);
+  color: var(--ds-on-surface);
 }
 
 code {
   font-size: 15px;
   line-height: 135%;
   padding: 4px 8px;
-  background: var(--code-bg);
+  background: var(--ds-surface-container-lowest);
 }
 
 /* synth-app (embedded tab): keyframes + utilities not covered by component classes */
@@ -248,17 +671,83 @@ code {
   text-shadow: 0 0 12px rgba(138, 210, 222, 0.6);
 }
 
+.ds-recessed-panel {
+  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.5);
+}
+
+:root[data-visual-layout='light'] .ds-recessed-panel {
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+/* Stitch light Synth Lab — studio panel chrome (`--ds-rack-border` = Stitch `.rack-panel`) */
+:root[data-visual-layout='light'] .studio-panel-border {
+  border: 1px solid var(--ds-rack-border);
+}
+
+:root[data-visual-layout='light'] .studio-surface-recessed {
+  background-color: var(--ds-surface-container);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.ds-lcd-glow {
+  text-shadow: 0 0 15px rgba(138, 210, 222, 0.6);
+}
+
+/* Stitch tuner mock — recessed chassis around LCD well */
+.tuner-lcd-chassis {
+  box-shadow: inset 0 2px 8px rgb(0 0 0 / 0.72);
+}
+
+:root[data-visual-layout='light'] .tuner-lcd-chassis {
+  box-shadow: inset 0 2px 8px rgb(15 23 42 / 0.08);
+}
+
+.tuner-needle-transition {
+  transition: transform 0.15s cubic-bezier(0.17, 0.67, 0.83, 0.67);
+}
+
+.knob-shadow-tuner {
+  box-shadow:
+    inset 0 2px 4px rgb(255 255 255 / 0.05),
+    0 4px 8px rgb(0 0 0 / 0.5);
+}
+
+:root[data-visual-layout='light'] .knob-shadow-tuner {
+  box-shadow:
+    inset 0 1px 2px rgb(255 255 255 / 0.9),
+    0 2px 6px rgb(15 23 42 / 0.06);
+}
+
+.ds-fader-track {
+  background: linear-gradient(to right, #0d0e10, #1b1c1e);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.inset-lcd {
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.teal-glow {
+  filter: drop-shadow(0 0 4px rgb(var(--ds-chrome-rgb) / 0.65));
+}
+
 .scanline-overlay-sw {
   background: linear-gradient(to bottom, rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
   background-size: 100% 4px;
 }
 
-.well-inset-light {
-  background-color: #d9dadc;
+/* Stitch light — studio rack (HTML: `.rack-panel`, `.recessed-well`, `.lcd-display`) */
+:root[data-visual-layout='light'] .well-inset-light {
+  background-color: var(--ds-surface-container);
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
-.rack-panel-light {
-  border: 1px solid #d1d9e0;
-  background-color: #edeef0;
+:root[data-visual-layout='light'] .rack-panel-light {
+  border: 1px solid var(--ds-rack-border);
+  background-color: var(--ds-background);
+}
+
+:root[data-visual-layout='light'] .lcd-display-light {
+  background-color: var(--ds-surface-variant);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
 }

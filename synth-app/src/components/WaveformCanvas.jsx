@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 
-export function WaveformCanvas({ analyserRef }) {
+/** @param {{ analyserRef: import('react').RefObject<AnalyserNode | null | undefined>, tone?: 'default' | 'synthwave' }} props */
+export function WaveformCanvas({ analyserRef, tone = 'default' }) {
   const canvasRef = useRef(null)
   const rafRef = useRef(0)
 
@@ -22,10 +23,11 @@ export function WaveformCanvas({ analyserRef }) {
       if (canvas.width !== w) canvas.width = w
       if (canvas.height !== h) canvas.height = h
 
-      ctx2d.fillStyle = '#08080a'
+      const neon = tone === 'synthwave'
+      ctx2d.fillStyle = neon ? '#0a0a14' : '#08080a'
       ctx2d.fillRect(0, 0, w, h)
-      ctx2d.strokeStyle = 'rgba(57, 255, 20, 0.45)'
-      ctx2d.lineWidth = 1.5
+      ctx2d.strokeStyle = neon ? 'rgb(0 251 251 / 0.12)' : 'rgba(57, 255, 20, 0.45)'
+      ctx2d.lineWidth = 1.25
       ctx2d.beginPath()
       ctx2d.moveTo(0, h * 0.5)
       ctx2d.lineTo(w, h * 0.5)
@@ -33,8 +35,8 @@ export function WaveformCanvas({ analyserRef }) {
 
       if (analyser) {
         analyser.getByteTimeDomainData(buffer)
-        ctx2d.strokeStyle = '#39ff14'
-        ctx2d.lineWidth = 2
+        ctx2d.strokeStyle = neon ? 'rgb(0 251 251 / 0.95)' : '#39ff14'
+        ctx2d.lineWidth = neon ? 1.85 : 2
         ctx2d.beginPath()
         const slice = w / buffer.length
         for (let i = 0; i < buffer.length; i++) {
@@ -50,10 +52,16 @@ export function WaveformCanvas({ analyserRef }) {
     }
     rafRef.current = requestAnimationFrame(draw)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [analyserRef])
+  }, [analyserRef, tone])
 
   return (
-    <div className="h-full w-full overflow-hidden rounded-b-2xl border border-zinc-800/80 bg-[#08080a] shadow-inner">
+    <div
+      className={
+        tone === 'synthwave'
+          ? 'h-full w-full overflow-hidden rounded-none border-none bg-transparent'
+          : 'h-full w-full overflow-hidden rounded-b-2xl border border-zinc-800/80 bg-[#08080a] shadow-inner'
+      }
+    >
       <canvas
         ref={canvasRef}
         className="block h-full w-full"

@@ -9,7 +9,7 @@
 - **Top bar:** Account button → slide-over **Account** drawer (guest vs email user, sign-out; embeds email/password + magic-link flows via Settings).
 - **Bottom nav (5 tabs):** Metronome · Tuner · Setlists · Practice · Synth lab — emoji icons + labels today.
 - **Floating Metronome HUD:** Draggable mini panel on every tab *except* Metronome when user “engages” it from the main metronome screen — play/pause, BPM, beat, expand/collapse, rhythm-trainer-related controls so tempo stays usable while browsing other tools.
-- **Theme:** `data-theme="dark"`; CSS vars `--bg`, `--surface`, `--text`, `--text-h`, `--border`, `--shadow`. Metronome synth embed uses near-black panel `#050506`.
+- **Theme:** `data-visual-layout` on `:root` drives Stitch tokens `--ds-*` (see `index.css` + `tailwind.config.js`). Legacy `--bg` / `--text` variables were removed; use semantic Tailwind (`bg-background`, `text-on-surface`, …) or `--ds-*` in plain CSS.
 - **System overlays:** Count-in overlay (beats before play); optional full-screen **beat flash**; **Audio session primer** (mobile audio unlock hint). **iOS PDF** full-screen reader for sheet music (from Practice).
 
 ---

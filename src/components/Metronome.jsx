@@ -1,19 +1,26 @@
-import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { forwardRef, lazy, Suspense, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { accentShortLabel, accentToNumeric } from '../lib/metronome/beatAccentLabels.js'
 import { useMetronomeMidi } from '../hooks/useMetronomeMidi.js'
 import { useMetronomePlayFab } from '../hooks/useMetronomePlayFab.js'
-import { useMetronomeSystemStatus } from '../hooks/useMetronomeSystemStatus.js'
 import { useMetronomeTapTempo } from '../hooks/useMetronomeTapTempo.js'
 import { useAuth } from '../context/useAuth'
 import { RotaryDial } from './metronome/RotaryDial.jsx'
-import { MetronomeLayoutObsidian } from './metronome/layouts/MetronomeLayoutObsidian.jsx'
-import { MetronomeLayoutLight } from './metronome/layouts/MetronomeLayoutLight.jsx'
-import { MetronomeLayoutSynthwave } from './metronome/layouts/MetronomeLayoutSynthwave.jsx'
-import SetlistManager from './SetlistManager.jsx'
 import Stepper from './Stepper.jsx'
 import './Metronome.css'
-import { writeMetronomeVisualLayout } from '../lib/metronomeVisualLayout.js'
+import { writeMetronomeVisualLayout, applyDocumentThemeForVisualLayout } from '../lib/metronomeVisualLayout.js'
+import { readSynthwaveMetronomeView, writeSynthwaveMetronomeView } from '../lib/metronomeSynthwaveView.js'
+
+const SetlistManager = lazy(() => import('./SetlistManager.jsx'))
+const MetronomeLayoutObsidian = lazy(() =>
+  import('./metronome/layouts/MetronomeLayoutObsidian.jsx').then((m) => ({ default: m.MetronomeLayoutObsidian })),
+)
+const MetronomeLayoutLight = lazy(() =>
+  import('./metronome/layouts/MetronomeLayoutLight.jsx').then((m) => ({ default: m.MetronomeLayoutLight })),
+)
+const MetronomeLayoutSynthwave = lazy(() =>
+  import('./metronome/layouts/MetronomeLayoutSynthwave.jsx').then((m) => ({ default: m.MetronomeLayoutSynthwave })),
+)
 
 // Safari/older canvases may not have roundRect; provide a small fallback.
 if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
@@ -25,6 +32,30 @@ if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D
     this.arcTo(x, y + h, x, y, rr)
     this.arcTo(x, y, x + w, y, rr)
     return this
+  }
+}
+
+/** Screen-flash overlay colors per visual layout (aligned with `:root[data-visual-layout]` tokens). */
+function flashPaletteForVisualLayout(layout) {
+  switch (layout) {
+    case 'light':
+      return {
+        downbeat: 'rgba(25, 28, 30, 0.42)',
+        beat: 'rgba(23, 42, 64, 0.28)',
+        stage: 'rgba(25, 28, 30, 0.22)',
+      }
+    case 'synthwave':
+      return {
+        downbeat: 'rgba(255, 171, 243, 0.95)',
+        beat: 'rgba(0, 251, 251, 0.78)',
+        stage: 'rgba(255, 171, 243, 0.32)',
+      }
+    default:
+      return {
+        downbeat: 'rgba(255, 255, 210, 1)',
+        beat: 'rgba(255, 255, 255, 1)',
+        stage: 'rgba(255, 255, 255, 1)',
+      }
   }
 }
 
@@ -109,6 +140,16 @@ export default forwardRef(function Metronome({
     }
   }, [met])
 
+  // Bridge Synth Lab drum kit + imported drum samples into metronome click sounds.
+  useEffect(() => {
+    const api = synthBridge?.synthRef?.current
+    const kit = api?.drumKit
+    const sampleBuffers = api?.drumSampleBuffers
+    if (typeof met?.setExternalDrumBank === 'function') {
+      met.setExternalDrumBank({ kit, sampleBuffers })
+    }
+  }, [met, synthBridge?.synthRef])
+
   useMetronomeMidi(met)
 
   const [screenFlashEnabled, setScreenFlashEnabled] = useState(() => {
@@ -131,6 +172,13 @@ export default forwardRef(function Metronome({
     if (saved === 'off') return false
     return false
   })
+
+  const [synthwaveMetronomeView, setSynthwaveMetronomeView] = useState(() => readSynthwaveMetronomeView())
+  useEffect(() => {
+    const onSw = () => setSynthwaveMetronomeView(readSynthwaveMetronomeView())
+    window.addEventListener('metronome-synthwave-view-changed', onSw)
+    return () => window.removeEventListener('metronome-synthwave-view-changed', onSw)
+  }, [])
 
   useEffect(() => {
     localStorage.setItem('metronome.haptics', hapticsEnabled ? 'on' : 'off')
@@ -172,7 +220,8 @@ export default forwardRef(function Metronome({
 
       const delayMs = Math.max(0, (evt.when - nowAudio) * 1000)
       const level = evt.isMeasureDownbeat ? 1.0 : 0.5
-      const color = evt.isMeasureDownbeat ? 'rgba(255, 255, 210, 1)' : 'rgba(255, 255, 255, 1)'
+      const { downbeat, beat } = flashPaletteForVisualLayout(visualLayout)
+      const color = evt.isMeasureDownbeat ? downbeat : beat
 
       const t1 = window.setTimeout(() => {
         try {
@@ -205,7 +254,7 @@ export default forwardRef(function Metronome({
       for (const id of s) window.clearTimeout(id)
       s.clear()
     }
-  }, [met?.events, screenFlashEnabled])
+  }, [met?.events, screenFlashEnabled, visualLayout])
 
   // Stage Mode flash: Beat 1 only, semi-transparent white, 50ms.
   useEffect(() => {
@@ -224,9 +273,10 @@ export default forwardRef(function Metronome({
       if (nowAudio == null) return
 
       const delayMs = Math.max(0, (evt.when - nowAudio) * 1000)
+      const stageBg = flashPaletteForVisualLayout(visualLayout).stage
       const t1 = window.setTimeout(() => {
         try {
-          el.style.background = 'rgba(255, 255, 255, 1)'
+          el.style.background = stageBg
           el.style.opacity = '0.3'
         } catch {
           // ignore
@@ -254,7 +304,7 @@ export default forwardRef(function Metronome({
       for (const id of s) window.clearTimeout(id)
       s.clear()
     }
-  }, [met?.events, stageMode])
+  }, [met?.events, stageMode, visualLayout])
 
   const bpm = met.bpm
 
@@ -302,7 +352,6 @@ export default forwardRef(function Metronome({
   }
 
   const { tapHint, handleTap } = useMetronomeTapTempo(met)
-  const { systemStatus, systemStatusError } = useMetronomeSystemStatus()
   const { runPlayUserAction, handlePlayFabClick } = useMetronomePlayFab(met, {
     onAfterStartFromStopped: onEngageFromMainPage,
   })
@@ -330,6 +379,7 @@ export default forwardRef(function Metronome({
     handlePlayFabClick,
     handlePlayFabPointerUp,
     handlePlayFabTouchEnd,
+    onOpenSettings: () => setSettingsOpen(true),
   }
 
   const settingsPortalTarget =
@@ -344,30 +394,13 @@ export default forwardRef(function Metronome({
           flashPortalTarget,
         )
       : null}
-    <div className="metronome">
+    <div className="metronome" data-visual-layout={visualLayout}>
       {/* Count-in overlay */}
       {met.countIn?.active ? (
         <div className="metronome__countIn" role="status" aria-live="polite">
           {met.countIn.beatsRemaining <= 3 && met.countIn.beatsRemaining > 0
             ? `${met.countIn.beatsRemaining}…`
             : 'GET READY'}
-        </div>
-      ) : null}
-
-      {/* System status banners */}
-      {systemStatus?.maintenance_mode ? (
-        <div className="metronome__status metronome__status--warn" role="status">
-          <strong>Maintenance mode</strong>
-          <span>{systemStatus.banner_message || 'Some features may be unavailable.'}</span>
-        </div>
-      ) : systemStatus?.banner_message ? (
-        <div className="metronome__status" role="status">
-          <span>{systemStatus.banner_message}</span>
-        </div>
-      ) : null}
-      {systemStatusError ? (
-        <div className="metronome__status metronome__status--muted" role="status">
-          Status unavailable: {systemStatusError}
         </div>
       ) : null}
 
@@ -414,7 +447,10 @@ export default forwardRef(function Metronome({
         </div>
       ) : null}
 
-      <section className={`metronome__panel metronome__panel--layout-${visualLayout} flex min-h-0 flex-1 flex-col`}>
+      <section
+        className={`metronome__panel metronome__panel--layout-${visualLayout} flex min-h-0 flex-1 flex-col`}
+        data-stitch-obsidian-wheel={visualLayout === 'obsidian' ? 'true' : undefined}
+      >
         {stageMode ? (
           <div className="metronome__controls">
             <div className="metronome__performance" role="region" aria-label="Performance Mode">
@@ -438,24 +474,57 @@ export default forwardRef(function Metronome({
               </button>
             </div>
           </div>
-        ) : visualLayout === 'obsidian' ? (
-          <MetronomeLayoutObsidian {...layoutTransport} />
-        ) : visualLayout === 'light' ? (
-          <MetronomeLayoutLight {...layoutTransport} />
         ) : (
-          <MetronomeLayoutSynthwave {...layoutTransport} />
+          <Suspense
+            fallback={
+              <div
+                className="metronome__panel metronome__panel--layout-loading flex min-h-[min(420px,55dvh)] flex-1 flex-col items-center justify-center gap-2 text-xs text-on-surface-variant"
+                role="status"
+                aria-live="polite"
+              >
+                Loading layout…
+              </div>
+            }
+          >
+            {visualLayout === 'obsidian' ? (
+              <MetronomeLayoutObsidian {...layoutTransport} />
+            ) : visualLayout === 'light' ? (
+              <MetronomeLayoutLight {...layoutTransport} />
+            ) : (
+              <MetronomeLayoutSynthwave {...layoutTransport} />
+            )}
+          </Suspense>
         )}
 
         {!stageMode && !minimal ? (
-          <div className="metronome__row metronome__row--presets mt-4 shrink-0 border-t border-[var(--border)] pt-4">
-            <SetlistManager met={met} stageMode={stageMode} setStageMode={setStageMode} synthBridge={synthBridge} />
+          <div className="metronome__row metronome__row--presets mt-4 shrink-0 border-t border-outline-variant pt-4">
+            <Suspense
+              fallback={
+                <div
+                  className="flex min-h-[4.5rem] items-center justify-center text-xs text-on-surface-variant"
+                  role="status"
+                  aria-live="polite"
+                >
+                  Loading presets…
+                </div>
+              }
+            >
+              <SetlistManager
+                met={met}
+                stageMode={stageMode}
+                setStageMode={setStageMode}
+                synthBridge={synthBridge}
+                visualLayout={visualLayout}
+              />
+            </Suspense>
           </div>
         ) : null}
       </section>
     </div>
 
     {settingsPortalTarget
-          ? createPortal(
+      ? createPortal(
+          <div className="metronome-portal-scope" data-visual-layout={visualLayout}>
           <div className="metronome__drawerBackdrop" role="dialog" aria-modal="true" aria-label="Settings">
             <button
               type="button"
@@ -485,13 +554,32 @@ export default forwardRef(function Metronome({
                         if (v !== 'obsidian' && v !== 'light' && v !== 'synthwave') return
                         setVisualLayout(v)
                         writeMetronomeVisualLayout(v)
+                        applyDocumentThemeForVisualLayout(v)
                       }}
                     >
                       <option value="obsidian">Obsidian (default)</option>
-                      <option value="light">Light rack</option>
-                      <option value="synthwave">Synthwave wheel</option>
+                      <option value="light">Obsidian Light</option>
+                      <option value="synthwave">Synthwave</option>
                     </select>
                   </label>
+                  {visualLayout === 'synthwave' ? (
+                    <label className="metronome__label">
+                      MATRIX_SYNC face
+                      <select
+                        className="metronome__select"
+                        value={synthwaveMetronomeView}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          if (v !== 'wheel' && v !== 'grid') return
+                          setSynthwaveMetronomeView(v)
+                          writeSynthwaveMetronomeView(v)
+                        }}
+                      >
+                        <option value="wheel">Wheel (Stitch 05)</option>
+                        <option value="grid">Grid (Stitch 06)</option>
+                      </select>
+                    </label>
+                  ) : null}
                 </div>
 
                 <div className="metronome__drawerSection">
@@ -751,21 +839,27 @@ export default forwardRef(function Metronome({
                       <option value="beep">Beep</option>
                       <option value="voiceNumbers">Voice (numbers)</option>
                       <option value="voiceCount">Voice Counting (One–Four)</option>
+                      <optgroup label="Drums (Synth Lab kit)">
+                        <option value="drum:kick">Kick</option>
+                        <option value="drum:snare">Snare</option>
+                        <option value="drum:hat">Hi-hat</option>
+                        <option value="drum:clap">Clap</option>
+                        <option value="drum:ride">Ride</option>
+                        <option value="drum:cowbell">Cowbell</option>
+                        <option value="drum:crashRide">Crash/Ride</option>
+                        <option value="drum:crash1">Crash</option>
+                      </optgroup>
                     </select>
                   </label>
 
-                  <label className="metronome__label">
-                    Pan
-                    <input className="metronome__range" type="range" min={-1} max={1} step={0.01} value={met.pan} onChange={(e) => met.setPan(e.target.value)} />
-                    <div className="metronome__rangeValue">{Number(met.pan).toFixed(2)}</div>
-                  </label>
                 </div>
               </div>
             </div>
+          </div>
           </div>,
           settingsPortalTarget,
-            )
-          : null}
+        )
+      : null}
 
     </>
   )

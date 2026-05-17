@@ -6,6 +6,7 @@ export const APP_TAB_PATH = /** @type {const} */ ({
   setlists: '/setlists',
   practice: '/practice',
   synth: '/synth',
+  settings: '/settings',
 })
 
 /** @typedef {keyof typeof APP_TAB_PATH} AppTabId */
@@ -16,6 +17,7 @@ const PATH_TO_TAB = {
   '/setlists': 'setlists',
   '/practice': 'practice',
   '/synth': 'synth',
+  '/settings': 'settings',
 }
 
 /**

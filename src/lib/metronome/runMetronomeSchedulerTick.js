@@ -45,6 +45,7 @@ export function runMetronomeSchedulerTick(env) {
   if (!isPlayingRef.current) return
   const ctx = ctxRef.current
   if (!ctx) return
+  if (ctx.state === 'closed') return
 
   if (ctx.state !== 'running') {
     try {
@@ -57,13 +58,14 @@ export function runMetronomeSchedulerTick(env) {
   }
 
   const meter = meterRef.current
+  const bpm = bpmRef.current
   const now = ctx.currentTime
 
   if (practiceRef.current.lastAudioTime != null) {
     const dt = Math.max(0, now - practiceRef.current.lastAudioTime)
     if (dt > 0) {
       practiceRef.current.totalSeconds += dt
-      practiceRef.current.bpmSecondsSum += bpmRef.current * dt
+      practiceRef.current.bpmSecondsSum += bpm * dt
       setPracticeTotalSeconds(practiceRef.current.totalSeconds)
       setPracticeAverageBpm(
         practiceRef.current.totalSeconds > 0

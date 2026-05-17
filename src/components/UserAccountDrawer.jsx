@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import { useAuth } from '../context/useAuth'
+import { useDocumentVisualLayout } from '../hooks/useDocumentVisualLayout.js'
 import Auth from './Auth.jsx'
 import './UserAccountDrawer.css'
 
@@ -10,6 +11,10 @@ import './UserAccountDrawer.css'
  */
 export default function UserAccountDrawer({ open, onClose }) {
   const { user, loading, signOut } = useAuth()
+  const visualLayout = useDocumentVisualLayout()
+  const studioLight = visualLayout === 'light'
+  const synthwave = visualLayout === 'synthwave'
+  const obsidian = !studioLight && !synthwave
   const [busy, setBusy] = useState(false)
   const titleId = useId()
 
@@ -53,13 +58,13 @@ export default function UserAccountDrawer({ open, onClose }) {
     <>
       <button
         type="button"
-        className="userDrawer__backdrop"
+        className={`userDrawer__backdrop${studioLight ? ' userDrawer__backdropLight' : ''}${synthwave ? ' userDrawer__backdropSynthwave' : ''}${obsidian ? ' userDrawer__backdropObsidian' : ''}`}
         aria-label="Close account"
         onClick={onClose}
         tabIndex={-1}
       />
       <div
-        className="userDrawer__panel"
+        className={`userDrawer__panel${studioLight ? ' userDrawer__panel--light' : ''}${synthwave ? ' userDrawer__panel--synthwave' : ''}${obsidian ? ' userDrawer__panel--obsidian' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -106,6 +111,7 @@ export default function UserAccountDrawer({ open, onClose }) {
             </>
           ) : (
             <Auth
+              studioLight={studioLight}
               onSuccess={() => {
                 onClose()
               }}

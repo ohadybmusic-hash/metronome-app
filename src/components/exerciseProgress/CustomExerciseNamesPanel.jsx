@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { normalizeExerciseLabel } from '../../lib/exerciseProgressUi.js'
+import { practiceOb, practiceObsidianChrome } from '../../lib/practiceObsidianUi.js'
 
 /**
  * @param {object} props
@@ -13,6 +14,7 @@ import { normalizeExerciseLabel } from '../../lib/exerciseProgressUi.js'
  * @param {() => void} [props.onSuccessfulAddToList]
  */
 export default function CustomExerciseNamesPanel({
+  visualLayout,
   customExerciseNames,
   sectionChoices,
   visibleLibraries,
@@ -22,6 +24,8 @@ export default function CustomExerciseNamesPanel({
   draftInitialFromForm = '',
   onSuccessfulAddToList,
 }) {
+  const ob = practiceObsidianChrome(visualLayout)
+  const p = practiceOb
   const [draft, setDraft] = useState('')
   const [addHint, setAddHint] = useState(/** @type {string | null} */ (null))
   /** Set after a successful "Add to list"; offers Cancel (dismiss) or Delete (undo add). */
@@ -105,19 +109,25 @@ export default function CustomExerciseNamesPanel({
   return (
     <div
       id="custom-exercise-manage-panel"
-      className="mb-6 rounded-2xl border border-[var(--border)] bg-[var(--surface-2,var(--surface))] p-4"
+      className={
+        ob
+          ? p.panel
+          : 'mb-6 rounded-2xl border border-hairline bg-surface-container-high p-4'
+      }
     >
-      <div className="text-sm font-medium text-[var(--text-h)]">Custom exercise names</div>
-      <p className="mt-1 text-xs text-[var(--text)]">
+      <div className={`text-sm font-medium ${ob ? 'text-chrome' : 'text-on-surface'}`}>
+        Custom exercise names
+      </div>
+      <p className="mt-1 text-xs text-on-surface-variant">
         Pick a folder, enter the exercise name, then press Add to list. From the log form, use Save next
         to the custom name to open this panel with the name filled in.
       </p>
 
       <fieldset className="mt-4 space-y-3 border-0 p-0">
-        <legend className="mb-1 text-xs font-medium text-[var(--text-h)]">
+        <legend className="mb-1 text-xs font-medium text-on-surface">
           In the sheet library, put this exercise…
         </legend>
-        <label className="flex cursor-pointer items-start gap-2 text-xs text-[var(--text)]">
+        <label className="flex cursor-pointer items-start gap-2 text-xs text-on-surface-variant">
           <input
             type="radio"
             className="mt-0.5"
@@ -126,10 +136,14 @@ export default function CustomExerciseNamesPanel({
             onChange={() => setFolderMode('existing')}
           />
           <span>
-            <span className="font-medium text-[var(--text-h)]">In an existing folder</span>
+            <span className="font-medium text-on-surface">In an existing folder</span>
             {folderMode === 'existing' && sectionChoices.length > 0 ? (
               <select
-                className="metronome__select mt-2 block w-full max-w-lg"
+                className={
+                  ob
+                    ? `${p.control} mt-2 block w-full max-w-lg`
+                    : 'metronome__select mt-2 block w-full max-w-lg'
+                }
                 value={selectedExistingValue}
                 onChange={(e) => setSelectedExistingValue(e.target.value)}
                 aria-label="Existing sheet library folder"
@@ -142,11 +156,11 @@ export default function CustomExerciseNamesPanel({
               </select>
             ) : null}
             {folderMode === 'existing' && sectionChoices.length === 0 ? (
-              <span className="mt-1 block text-[var(--text)]">No folders available.</span>
+              <span className="mt-1 block text-on-surface-variant">No folders available.</span>
             ) : null}
           </span>
         </label>
-        <label className="flex cursor-pointer items-start gap-2 text-xs text-[var(--text)]">
+        <label className="flex cursor-pointer items-start gap-2 text-xs text-on-surface-variant">
           <input
             type="radio"
             className="mt-0.5"
@@ -155,14 +169,14 @@ export default function CustomExerciseNamesPanel({
             onChange={() => setFolderMode('new')}
           />
           <span className="min-w-0 flex-1">
-            <span className="font-medium text-[var(--text-h)]">In a new library folder</span>
+            <span className="font-medium text-on-surface">In a new library folder</span>
             {folderMode === 'new' ? (
               <div className="mt-2 flex flex-col gap-2 sm:max-w-lg">
                 {visibleLibraries.length > 1 ? (
-                  <label className="metronome__label !text-xs">
-                    Course / bundle
+                  <label className={ob ? `${p.fieldGrid} !text-xs` : 'metronome__label !text-xs'}>
+                    {ob ? <span className={p.fieldCaption}>Course / bundle</span> : 'Course / bundle'}
                     <select
-                      className="metronome__select w-full"
+                      className={ob ? `${p.control} w-full` : 'metronome__select w-full'}
                       value={newFolderLibId}
                       onChange={(e) => setNewFolderLibId(e.target.value)}
                     >
@@ -174,11 +188,11 @@ export default function CustomExerciseNamesPanel({
                     </select>
                   </label>
                 ) : null}
-                <label className="metronome__label !text-xs">
-                  New folder name
+                <label className={ob ? `${p.fieldGrid} !text-xs` : 'metronome__label !text-xs'}>
+                  {ob ? <span className={p.fieldCaption}>New folder name</span> : 'New folder name'}
                   <input
                     type="text"
-                    className="metronome__select w-full"
+                    className={ob ? `${p.control} w-full` : 'metronome__select w-full'}
                     value={newFolderTitle}
                     onChange={(e) => {
                       setNewFolderTitle(e.target.value)
@@ -198,11 +212,11 @@ export default function CustomExerciseNamesPanel({
         onSubmit={submitAdd}
         className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end"
       >
-        <label className="metronome__label min-w-0 flex-1 sm:max-w-md">
-          New custom exercise
+        <label className={ob ? `${p.fieldGrid} min-w-0 flex-1 sm:max-w-md` : 'metronome__label min-w-0 flex-1 sm:max-w-md'}>
+          {ob ? <span className={p.fieldCaption}>New custom exercise</span> : 'New custom exercise'}
           <input
             type="text"
-            className="metronome__select w-full"
+            className={ob ? `${p.control} w-full` : 'metronome__select w-full'}
             value={draft}
             onChange={(e) => {
               setDraft(e.target.value)
@@ -212,20 +226,33 @@ export default function CustomExerciseNamesPanel({
             autoComplete="off"
           />
         </label>
-        <button type="submit" className="metronome__btn metronome__btn--primary self-start sm:self-auto">
+        <button
+          type="submit"
+          className={
+            ob
+              ? `${p.btnPrimary} self-start sm:self-auto`
+              : 'metronome__btn metronome__btn--primary self-start sm:self-auto'
+          }
+        >
           Add to list
         </button>
       </form>
-      {addHint ? <p className="mt-2 text-xs text-[var(--text)]">{addHint}</p> : null}
+      {addHint ? <p className="mt-2 text-xs text-on-surface-variant">{addHint}</p> : null}
 
       {lastAdded ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text)]">
+        <div
+          className={
+            ob
+              ? 'mt-3 flex flex-wrap items-center gap-2 rounded-ds border border-hairline bg-surface-container-lowest px-3 py-2 text-xs text-on-surface-variant'
+              : 'mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-hairline bg-surface-container-low px-3 py-2 text-xs text-on-surface-variant'
+          }
+        >
           <span>
-            Added <span className="font-medium text-[var(--text-h)]">“{lastAdded}”</span> to your list.
+            Added <span className="font-medium text-on-surface">“{lastAdded}”</span> to your list.
           </span>
           <button
             type="button"
-            className="metronome__btn !py-1 !text-[11px]"
+            className={ob ? `${p.btnGhost} !py-1 !text-[11px]` : 'metronome__btn !py-1 !text-[11px]'}
             onClick={() => {
               onRemoveName(lastAdded)
               setLastAdded(null)
@@ -235,7 +262,7 @@ export default function CustomExerciseNamesPanel({
           </button>
           <button
             type="button"
-            className="metronome__linkBtn !text-[11px]"
+            className={ob ? `${p.linkBtn} !text-[11px]` : 'metronome__linkBtn !text-[11px]'}
             onClick={() => setLastAdded(null)}
           >
             Cancel
@@ -244,18 +271,22 @@ export default function CustomExerciseNamesPanel({
       ) : null}
 
       {customExerciseNames.length === 0 ? (
-        <div className="mt-3 text-xs text-[var(--text)]">No custom names yet.</div>
+        <div className="mt-3 text-xs text-on-surface-variant">No custom names yet.</div>
       ) : (
         <ul className="mt-3 flex flex-wrap gap-2">
           {customExerciseNames.map((n) => (
             <li
               key={n}
-              className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-h)]"
+              className={
+                ob
+                  ? 'flex items-center gap-1 rounded-ds border border-hairline bg-surface-container-lowest px-2 py-1 text-xs text-chrome'
+                  : 'flex items-center gap-1 rounded-full border border-hairline bg-surface-container-low px-2 py-1 text-xs text-on-surface'
+              }
             >
               <span>{n}</span>
               <button
                 type="button"
-                className="metronome__linkBtn !p-0 !text-[10px]"
+                className={ob ? `${p.linkBtn} !p-0 !text-[10px]` : 'metronome__linkBtn !p-0 !text-[10px]'}
                 onClick={() => onRemoveName(n)}
               >
                 Remove

@@ -37,8 +37,19 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
+      host: true,
       fs: {
         allow: [__dirname],
+      },
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return
+            if (id.includes('@supabase')) return 'supabase'
+          },
+        },
       },
     },
   }
