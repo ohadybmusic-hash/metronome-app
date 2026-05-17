@@ -258,45 +258,36 @@ export function useIosPdfReader() {
  * @param {object} props
  * @param {string} props.href                 The static / fallback URL.
  * @param {() => Promise<string>} [props.resolveHref]  Optional async resolver — if provided,
- *   the actual URL is fetched at click time (e.g. a signed URL from private storage).
- *   On failure, falls back to `href`.
+ *   the actual URL is prefetched on mount (e.g. a signed URL from private storage)
+ *   so clicks remain plain anchor clicks (gesture preserved, no popup blocker).
+ *   On failure, the click silently falls back to `href`.
  */
 export function PracticePdfLink({ href, resolveHref, className = '', children, title = 'Sheet', onClick }) {
   const { openPdf } = useIosPdfReader()
-  if (!href) return null
+  const [resolved, setResolved] = useState(/** @type {string | null} */ (null))
 
-  const resolve = async () => {
-    if (!resolveHref) return href
-    try {
-      const url = await resolveHref()
-      return url || href
-    } catch {
-      return href
+  useEffect(() => {
+    if (!resolveHref) {
+      setResolved(null)
+      return undefined
     }
-  }
+    let cancelled = false
+    resolveHref()
+      .then((url) => {
+        if (!cancelled && url && typeof url === 'string') setResolved(url)
+      })
+      .catch(() => {
+        /* leave resolved=null; fall back to href */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [resolveHref])
+
+  if (!href) return null
+  const finalHref = resolved || href
 
   if (isIOSOrIPadOS()) {
-    return (
-      <button
-        type="button"
-        className={className}
-        onClick={async (e) => {
-          onClick?.(e)
-          if (e.defaultPrevented) return
-          const url = await resolve()
-          openPdf({ url, title })
-        }}
-      >
-        {children}
-      </button>
-    )
-  }
-
-  // Non-iOS with async resolver: open a blank tab synchronously inside the
-  // click handler (preserves the user gesture so popup blockers don't fire),
-  // then redirect it once the signed URL resolves. Falls back to in-tab
-  // navigation only if the popup was actually blocked.
-  if (resolveHref) {
     return (
       <button
         type="button"
@@ -304,21 +295,7 @@ export function PracticePdfLink({ href, resolveHref, className = '', children, t
         onClick={(e) => {
           onClick?.(e)
           if (e.defaultPrevented) return
-          const popup = window.open('about:blank', '_blank', 'noopener,noreferrer')
-          resolve().then(
-            (url) => {
-              if (popup && !popup.closed) {
-                popup.location.href = url
-              } else {
-                window.location.href = url
-              }
-            },
-            () => {
-              if (popup && !popup.closed) {
-                popup.location.href = href
-              }
-            },
-          )
+          openPdf({ url: finalHref, title })
         }}
       >
         {children}
@@ -329,7 +306,7 @@ export function PracticePdfLink({ href, resolveHref, className = '', children, t
   return (
     <a
       className={className}
-      href={href}
+      href={finalHref}
       target="_blank"
       rel="noopener noreferrer"
       onClick={onClick}
