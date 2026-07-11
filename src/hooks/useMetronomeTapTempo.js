@@ -1,9 +1,14 @@
 import { useRef, useState } from 'react'
-import { average } from '../lib/average.js'
-import { clamp } from '../lib/clamp.js'
+import { bpmFromTapTimes } from '../lib/metronome/tapTempo.js'
+
+const MAX_TAPS = 6 // sliding window: up to 5 intervals averaged
+const IDLE_RESET_MS = 2000
 
 /**
- * 4-tap average → BPM, with 2s idle reset and hint string for the main metronome UI.
+ * Tap tempo → BPM. Responds from the 2nd tap and refines as you keep tapping, averaging a
+ * sliding window of the last few intervals. A single stray tap (roughly half or double the
+ * beat) is rejected against the median so it doesn't throw off the estimate. Idle for 2s resets.
+ * The BPM math lives in `lib/metronome/tapTempo.js` (pure + unit-tested).
  * @param {object} met
  * @param {function(number): void} met.setBpm
  */
@@ -12,31 +17,29 @@ export function useMetronomeTapTempo(met) {
     times: [],
     lastTapAt: 0,
   })
-  const [tapHint, setTapHint] = useState('Tap 4+ times')
+  const [tapHint, setTapHint] = useState('Tap to set tempo')
 
   const handleTap = () => {
     const now = performance.now()
     const tr = tapRef.current
 
-    // Reset if user pauses tapping for 2s.
-    if (tr.lastTapAt && now - tr.lastTapAt > 2000) tr.times = []
+    // Reset if the user pauses tapping for 2s (starting a fresh tempo).
+    if (tr.lastTapAt && now - tr.lastTapAt > IDLE_RESET_MS) tr.times = []
     tr.lastTapAt = now
 
     tr.times.push(now)
-    // Keep only last 4 taps.
-    while (tr.times.length > 4) tr.times.shift()
+    while (tr.times.length > MAX_TAPS) tr.times.shift()
 
-    if (tr.times.length < 4) {
-      setTapHint('Tap 4 times')
+    // Need at least two taps (one interval) before we can estimate a tempo.
+    if (tr.times.length < 2) {
+      setTapHint('Keep tapping…')
       return
     }
 
-    // 4 taps => 3 intervals; average them.
-    const intervals = [tr.times[1] - tr.times[0], tr.times[2] - tr.times[1], tr.times[3] - tr.times[2]]
-    const msPerBeat = average(intervals)
-    const nextBpm = clamp(Math.round(60000 / msPerBeat), 1, 400)
+    const nextBpm = bpmFromTapTimes(tr.times)
+    if (nextBpm == null) return
     met.setBpm(nextBpm)
-    setTapHint(`Set to ${nextBpm} BPM`)
+    setTapHint(`${nextBpm} BPM`)
   }
 
   return { tapHint, handleTap }

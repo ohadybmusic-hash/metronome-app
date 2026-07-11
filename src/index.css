@@ -751,3 +751,17 @@ code {
   background-color: var(--ds-surface-variant);
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
 }
+
+/* Reduced motion (synth-app tab): drop the per-hit scale/translate movement and the
+   brightness strobe for motion-sensitive users. A brief static glow is kept as feedback. */
+@media (prefers-reduced-motion: reduce) {
+  .beat-block-flash {
+    animation: none !important;
+    box-shadow: 0 0 12px 1px var(--beat-glow, rgba(255, 255, 255, 0.35)) !important;
+  }
+  .drum-illu-shine {
+    animation: none !important;
+    transform: none !important;
+    opacity: 0 !important;
+  }
+}

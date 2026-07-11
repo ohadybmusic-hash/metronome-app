@@ -189,7 +189,7 @@ export function MetronomeLayoutLight({
         >
           <div className="absolute left-3 top-2 flex items-center gap-2">
             <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
-            <span className="font-label-caps text-[8px] text-primary">SIGNAL</span>
+            <span className="font-label-caps text-[9px] text-primary">SIGNAL</span>
           </div>
           <div className="flex items-baseline gap-1">
             <span className="font-display-mono text-7xl font-black tracking-tighter text-primary">{Math.round(bpm)}</span>

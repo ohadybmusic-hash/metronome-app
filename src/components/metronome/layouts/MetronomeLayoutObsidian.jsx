@@ -397,7 +397,7 @@ export function MetronomeLayoutObsidian({
           <span className="material-symbols-outlined">remove</span>
         </button>
         <div className="h-4 w-px bg-neutral-800" aria-hidden />
-        <span className="font-label-caps text-[10px] tracking-[0.1em] text-neutral-500">FINE ADJUST</span>
+        <span className="font-label-caps text-[10px] tracking-[0.1em] text-neutral-400">FINE ADJUST</span>
         <div className="h-4 w-px bg-neutral-800" aria-hidden />
         <button
           type="button"
@@ -429,7 +429,7 @@ export function MetronomeLayoutObsidian({
             <h3 className="mb-4 text-center font-label-caps text-xs uppercase tracking-widest text-outline">
               Time Signature
             </h3>
-            <p className="mb-3 text-center text-[10px] text-neutral-500">Tap once to select a preset</p>
+            <p className="mb-3 text-center text-[10px] text-neutral-400">Tap once to select a preset</p>
             <div className="mb-4 grid grid-cols-5 gap-2">
               {METRONOME_TIME_SIGNATURES.map((sig) => (
                 <button
@@ -447,7 +447,7 @@ export function MetronomeLayoutObsidian({
               ))}
             </div>
             <div className="border-t border-neutral-800 pt-4">
-              <p className="mb-3 text-center text-[10px] uppercase tracking-widest text-neutral-500">Custom</p>
+              <p className="mb-3 text-center text-[10px] uppercase tracking-widest text-neutral-400">Custom</p>
               <div className="flex items-center justify-center gap-6">
                 <div className="flex flex-col items-center gap-1">
                   <button
@@ -467,7 +467,7 @@ export function MetronomeLayoutObsidian({
                   >
                     <span className="material-symbols-outlined text-base">expand_more</span>
                   </button>
-                  <span className="text-[9px] uppercase tracking-widest text-neutral-500">Beats</span>
+                  <span className="text-[9px] uppercase tracking-widest text-neutral-400">Beats</span>
                 </div>
                 <span className="text-4xl font-light text-neutral-600">/</span>
                 <div className="flex flex-col items-center gap-1">
@@ -496,7 +496,7 @@ export function MetronomeLayoutObsidian({
                   >
                     <span className="material-symbols-outlined text-base">expand_more</span>
                   </button>
-                  <span className="text-[9px] uppercase tracking-widest text-neutral-500">Note</span>
+                  <span className="text-[9px] uppercase tracking-widest text-neutral-400">Note</span>
                 </div>
               </div>
               <button
@@ -512,7 +512,7 @@ export function MetronomeLayoutObsidian({
             </div>
             <button
               type="button"
-              className="mt-3 w-full rounded-xl py-2 text-xs text-neutral-500 hover:text-neutral-300"
+              className="mt-3 w-full rounded-xl py-2 text-xs text-neutral-400 hover:text-neutral-300"
               onClick={() => setSigPickerOpen(false)}
             >
               Cancel
@@ -562,7 +562,7 @@ export function MetronomeLayoutObsidian({
             </div>
             <button
               type="button"
-              className="mt-4 w-full rounded-xl py-2 text-xs text-neutral-500 hover:text-neutral-300"
+              className="mt-4 w-full rounded-xl py-2 text-xs text-neutral-400 hover:text-neutral-300"
               onClick={() => setSubPickerOpen(false)}
             >
               Cancel

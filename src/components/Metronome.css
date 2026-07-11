@@ -439,7 +439,7 @@
   padding: 20px 20px 0;
 }
 .metronome__accentLabel {
-  font-size: 8px;
+  font-size: 9px;
   letter-spacing: 4px;
   text-transform: uppercase;
   color: var(--ds-on-surface-variant);
@@ -511,7 +511,7 @@
 /* Level label */
 .beat__label {
   text-align: center;
-  font-size: 8px;
+  font-size: 9px;
   letter-spacing: 1px;
   color: var(--ds-on-surface-variant);
   margin-top: 4px;
@@ -550,7 +550,7 @@
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
-  font-size: 8px;
+  font-size: 9px;
   letter-spacing: 2px;
   text-transform: uppercase;
   color: var(--ds-on-surface-variant);
@@ -565,7 +565,7 @@
   border-color: color-mix(in srgb, var(--ds-on-surface) 18%, transparent);
 }
 .metronome__label--mini {
-  font-size: 8px;
+  font-size: 9px;
   letter-spacing: 2px;
 }
 .metronome__select {
@@ -1026,4 +1026,26 @@
 }
 @media (min-width: 520px) {
   .metronome { padding: 0; }
+}
+
+/* ── Reduced motion ──
+   Honor the OS "reduce motion" setting for vestibular / motion-sensitive users. We neutralize
+   decorative and continuously-looping motion (the infinite FAB pulse, the per-beat "pop" scale,
+   the tap ripple) but deliberately KEEP functional feedback: the active-beat color/glow still
+   conveys the beat, and Flash Mode is left untouched because the user opts into it explicitly. */
+@media (prefers-reduced-motion: reduce) {
+  /* Infinite glow pulse on the active play button → static. */
+  .metronome__fab.is-active {
+    animation: none !important;
+  }
+  /* Per-beat scale "pop" → no transform; the color/box-shadow change below still lands. */
+  .metronome__beat.is-beat-active .beat__block--filled {
+    animation: none !important;
+    transform: none !important;
+  }
+  /* Tap-tempo ripple → don't expand across the dial. */
+  .dial__ripple {
+    animation: none !important;
+    opacity: 0 !important;
+  }
 }
