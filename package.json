@@ -10,7 +10,10 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "preview": "vite preview",
+    "a11y": "lighthouse http://localhost:4173 --only-categories=accessibility --output=html --output-path=perf/a11y.html --quiet --chrome-flags=\"--headless=new\"",
     "stitch:export-light": "node scripts/stitch-export-precision-tempo-light.mjs",
     "stitch:export-synthwave": "node scripts/stitch-export-precision-tempo-synthwave.mjs",
     "stitch:export-obsidian": "node scripts/stitch-export-precision-tempo-obsidian-final.mjs",
@@ -44,6 +47,7 @@
     "sharp": "^0.34.5",
     "tailwindcss": "^3.4.19",
     "vite": "^8.0.10",
-    "vite-plugin-pwa": "^1.3.0"
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "^4.1.10"
   }
 }
