@@ -127,6 +127,15 @@ export function runMetronomeSchedulerTick(env) {
   const spq = secondsPerQuarter(bpmRef.current)
   const secondsPerPulse = spq * (4 / meter.denominator)
 
+  // Catch-up guard: if the tab was backgrounded or audio was interrupted, setInterval
+  // stops firing while ctx.currentTime keeps advancing, leaving the cursor far in the past.
+  // Without this, the loop below would dump every missed pulse at a past `when` and they
+  // would all fire at once (a burst of stacked clicks). Snap the cursor forward instead.
+  if (nextPulseTimeRef.current < now - 0.05) {
+    nextPulseTimeRef.current = now + 0.02
+    nextPolyTimeRef.current = now + 0.02
+  }
+
   while (nextPulseTimeRef.current < now + scheduleAheadSeconds) {
     const pulseIndex = pulseIndexRef.current
 
@@ -267,6 +276,15 @@ export function runMetronomeSchedulerTick(env) {
     const mainBeats = Math.max(1, Math.floor(Number(poly.mainBeats) || 1))
     const polyBeats = Math.max(1, Math.floor(Number(poly.polyBeats) || 1))
     const polyStepSeconds = secondsPerQuarter(bpmRef.current) * (mainBeats / polyBeats)
+
+    // The poly cursor only advances while this loop runs (i.e. while poly is enabled). If poly
+    // was toggled on mid-session, or the tab was throttled, `nextPolyTimeRef` is stuck in the
+    // past — without this guard the loop would schedule every missed beat at a past `when` (an
+    // audible burst, and a long synchronous loop that can freeze the tab). Snap it forward.
+    if (nextPolyTimeRef.current < now) {
+      nextPolyTimeRef.current = now + 0.02
+      polyIndexRef.current = 0
+    }
 
     while (nextPolyTimeRef.current < now + scheduleAheadSeconds) {
       const gapMuted = internalClockRef.current.enabled && internalClockRef.current.isMuted

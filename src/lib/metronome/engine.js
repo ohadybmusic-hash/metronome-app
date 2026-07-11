@@ -109,6 +109,9 @@ export function getSubdivisionFactor(subdivision) {
 }
 
 export function createBeepAt(ctx, when, output, { frequency, duration, volume }) {
+  // At volume 0 (muted) there is nothing to play, and an exponential ramp to 0 is invalid
+  // (the target of exponentialRampToValueAtTime must be non-zero) — bail early.
+  if (!(volume > 0)) return
   const osc = ctx.createOscillator()
   const gain = ctx.createGain()
 
@@ -119,7 +122,7 @@ export function createBeepAt(ctx, when, output, { frequency, duration, volume })
   const release = Math.max(0.004, duration - attack)
 
   gain.gain.setValueAtTime(0.0001, when)
-  gain.gain.exponentialRampToValueAtTime(volume, when + attack)
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, volume), when + attack)
   gain.gain.exponentialRampToValueAtTime(0.0001, when + attack + release)
 
   osc.connect(gain)
@@ -130,6 +133,7 @@ export function createBeepAt(ctx, when, output, { frequency, duration, volume })
 }
 
 export function createWoodblockAt(ctx, when, output, { frequency, volume }) {
+  if (!(volume > 0)) return
   const osc = ctx.createOscillator()
   const gain = ctx.createGain()
   const filter = ctx.createBiquadFilter()
@@ -163,6 +167,7 @@ export function createWoodblockAt(ctx, when, output, { frequency, volume }) {
  */
 export function createVoiceAt(ctx, when, output, buffer, { volume, maxSlotSeconds } = {}) {
   if (!buffer) return
+  if (!(volume > 0)) return
   const src = ctx.createBufferSource()
   const gain = ctx.createGain()
   src.buffer = buffer

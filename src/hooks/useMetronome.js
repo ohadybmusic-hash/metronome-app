@@ -309,7 +309,17 @@ export function useMetronome(options = {}) {
     if (!ctx || !isPlayingRef.current) return
 
     const now = ctx.currentTime
-    nextPulseTimeRef.current = Math.max(now + 0.02, now)
+    // Only snap the scheduling cursor forward when we've fallen *behind* real time
+    // (tab throttle, audio interruption, or a just-started transport). Never rewind a
+    // cursor that is already scheduled ahead: the pulses in the lookahead window have
+    // already been committed via osc.start(when) and cannot be un-scheduled, so rewinding
+    // re-schedules them and produces doubled / flammed clicks and a jumping beat counter.
+    // A plain BPM change needs no rewind — the tick recomputes secondsPerPulse from
+    // bpmRef every iteration, so the new tempo takes effect as the lookahead window drains.
+    if (nextPulseTimeRef.current < now + 0.02) {
+      nextPulseTimeRef.current = now + 0.02
+      nextPolyTimeRef.current = now + 0.02
+    }
     schedulerTickRef.current()
   }, [])
 

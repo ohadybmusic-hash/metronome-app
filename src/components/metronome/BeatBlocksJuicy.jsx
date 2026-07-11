@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { clamp } from '../../lib/clamp.js'
 import { accentShortLabel, accentToNumeric } from '../../lib/metronome/beatAccentLabels.js'
 
@@ -18,13 +18,33 @@ function readHintDismissed() {
 export function BeatBlocksJuicy({ met }) {
   const [hit, setHit] = useState({ i: -1, isDownbeat: false, id: 0 })
   const [hintOpen, setHintOpen] = useState(() => !readHintDismissed())
-
+  const getAudioTimeRef = useRef(met?.audioClock?.getAudioTime)
   useEffect(() => {
-    return met.events.onScheduledBeat((evt) => {
+    getAudioTimeRef.current = met?.audioClock?.getAudioTime
+  })
+
+  // `onScheduledBeat` fires at schedule time (up to a ~160 ms lookahead window ahead of the
+  // click). Defer the highlight with a timer aligned to `evt.when` on the audio clock so the
+  // block lights up in sync with the sound instead of running ahead of it.
+  useEffect(() => {
+    const timers = new Set()
+    const unsub = met.events.onScheduledBeat((evt) => {
       const beats = Math.max(1, met.pulsesPerMeasure || 1)
       const i = clamp(Number(evt?.pulseIndex ?? 0), 0, beats - 1)
-      setHit((prev) => ({ i, isDownbeat: i === 0, id: prev.id + 1 }))
+      const getT = getAudioTimeRef.current
+      const nowAudio = typeof getT === 'function' ? getT() : null
+      const delayMs = nowAudio == null ? 0 : Math.max(0, (evt.when - nowAudio) * 1000)
+      const id = window.setTimeout(() => {
+        timers.delete(id)
+        setHit((prev) => ({ i, isDownbeat: i === 0, id: prev.id + 1 }))
+      }, delayMs)
+      timers.add(id)
     })
+    return () => {
+      unsub?.()
+      for (const id of timers) window.clearTimeout(id)
+      timers.clear()
+    }
   }, [met])
 
   const beats = Math.max(1, met.pulsesPerMeasure || 1)
